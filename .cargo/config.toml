@@ -1,0 +1,5 @@
+[build]
+rustflags = ["-Cforce-unwind-tables", "-Cforce-frame-pointers", "-Cno-redzone"]
+
+[target.riscv64imac-unknown-none-elf]
+runner = "scripts/launch_qemu"

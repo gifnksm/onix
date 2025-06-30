@@ -1,0 +1,28 @@
+[package]
+name = "kernel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "kernel"
+test = false
+bench = false
+
+[dependencies]
+allocator.workspace = true
+arrayvec.workspace = true
+devicetree.workspace = true
+platform-cast.workspace = true
+sbi.workspace = true
+snafu.workspace = true
+snafu-utils.workspace = true
+
+[lints]
+workspace = true
