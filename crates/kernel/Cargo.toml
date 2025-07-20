@@ -18,11 +18,15 @@ bench = false
 [dependencies]
 allocator.workspace = true
 arrayvec.workspace = true
+bitflags.workspace = true
+dataview.workspace = true
 devicetree.workspace = true
 platform-cast.workspace = true
+riscv.workspace = true
 sbi.workspace = true
 snafu.workspace = true
 snafu-utils.workspace = true
+spin.workspace = true
 
 [lints]
 workspace = true

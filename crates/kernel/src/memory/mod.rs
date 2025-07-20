@@ -1,9 +1,13 @@
 use core::ops::Range;
 
 pub mod allocator;
+pub mod kernel_space;
 pub mod layout;
+pub mod page_table;
 
 pub const PAGE_SIZE: usize = 4096;
+pub const PAGE_SHIFT: usize = 12;
+const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 
 pub trait Align: Sized {
     fn align_up(&self, align: usize) -> Self;
@@ -41,11 +45,4 @@ where
     T: Align,
 {
     range.start.page_align_down()..range.end.page_align_up()
-}
-
-pub fn shrink_to_page_boundaries<T>(range: Range<T>) -> Range<T>
-where
-    T: Align,
-{
-    range.start.page_align_up()..range.end.page_align_down()
 }

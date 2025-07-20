@@ -20,6 +20,19 @@ unsafe extern "C" {
     static mut BOOT_STACK_START: u8;
     #[link_name = "__onix_boot_stack_end"]
     static mut BOOT_STACK_END: u8;
+    #[link_name = "__onix_rx_start"]
+    static mut RX_START: u8;
+    #[link_name = "__onix_rx_end"]
+    static mut RX_END: u8;
+    #[link_name = "__onix_ro_start"]
+    static mut RO_START: u8;
+    #[link_name = "__onix_ro_end"]
+    static mut RO_END: u8;
+    #[link_name = "__onix_rw_start"]
+    static mut RW_START: u8;
+    #[link_name = "__onix_rw_end"]
+    static mut RW_END: u8;
+
 }
 
 pub fn bss_addr_range() -> Range<usize> {
@@ -126,4 +139,22 @@ pub fn dtb_range(dtb: &Devicetree<'_>) -> Range<usize> {
     let dtb_start = ptr::from_ref(header).addr();
     let dtb_end = dtb_start + dtb.size();
     super::expand_to_page_boundaries(dtb_start..dtb_end)
+}
+
+pub fn kernel_rx_range() -> Range<usize> {
+    let rx_start = (&raw const RX_START).addr();
+    let rx_end = (&raw const RX_END).addr();
+    super::expand_to_page_boundaries(rx_start..rx_end)
+}
+
+pub fn kernel_ro_range() -> Range<usize> {
+    let ro_start = (&raw const RO_START).addr();
+    let ro_end = (&raw const RO_END).addr();
+    super::expand_to_page_boundaries(ro_start..ro_end)
+}
+
+pub fn kernel_rw_range() -> Range<usize> {
+    let rw_start = (&raw const RW_START).addr();
+    let rw_end = (&raw const RW_END).addr();
+    super::expand_to_page_boundaries(rw_start..rw_end)
 }

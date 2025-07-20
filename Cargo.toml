@@ -16,15 +16,18 @@ publish = false
 [workspace.dependencies]
 allocator = { path = "crates/allocator" }
 arrayvec = { version = "0.7.6", default-features = false }
+bitflags = "2.9.1"
 custom_debug_derive = "0.6.2"
 dataview = "1.0.1"
 devicetree = { path = "crates/devicetree" }
 endian = { path = "crates/endian" }
 platform-cast = "0.1.0"
+riscv = { version = "0.14.0", features = ["s-mode"] }
 sbi = { path = "crates/sbi" }
 sbi-sys = { path = "crates/sbi-sys" }
-snafu = { version = "0.8.6", default-features = false }
+snafu = { version = "0.8.6", default-features = false, features = ["rust_1_81"] }
 snafu-utils = { path = "crates/snafu-utils" }
+spin = "0.10.0"
 
 [profile.dev]
 panic = "abort"

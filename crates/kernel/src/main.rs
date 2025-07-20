@@ -1,3 +1,4 @@
+#![feature(allocator_api)]
 #![no_std]
 #![no_main]
 
@@ -36,6 +37,9 @@ fn boot_hart_start(boot_hartid: usize, dtb_pa: usize) -> ! {
 
     let dtb = unsafe { Devicetree::from_addr(dtb_bytes.as_ptr().addr()).unwrap() };
     dump_dtb_tree(&dtb).unwrap();
+
+    memory::kernel_space::init(&dtb).unwrap();
+    memory::kernel_space::apply();
 
     panic!("Kernel main function called");
 }
