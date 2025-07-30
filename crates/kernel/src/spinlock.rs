@@ -5,6 +5,8 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use crate::interrupt;
+
 pub struct SpinMutex<T> {
     locked: AtomicBool,
     data: UnsafeCell<T>,
@@ -37,10 +39,9 @@ impl<T> SpinMutex<T> {
     }
 
     pub fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
-        // TODO: disable interrupts
+        let interrupt_guard = interrupt::disable();
 
         if self.locked.swap(true, Ordering::Acquire) {
-            // TODO: enable interrupts
             return None;
         }
 
@@ -48,11 +49,14 @@ impl<T> SpinMutex<T> {
             *self.owner.get() = Location::caller();
         }
 
-        Some(SpinMutexGuard { mutex: self })
+        Some(SpinMutexGuard {
+            mutex: self,
+            _interrupt_guard: interrupt_guard,
+        })
     }
 
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
-        // TODO: disable interrupts
+        let interrupt_guard = interrupt::disable();
 
         while self.locked.swap(true, Ordering::Acquire) {}
 
@@ -60,7 +64,10 @@ impl<T> SpinMutex<T> {
             *self.owner.get() = Location::caller();
         }
 
-        SpinMutexGuard { mutex: self }
+        SpinMutexGuard {
+            mutex: self,
+            _interrupt_guard: interrupt_guard,
+        }
     }
 
     fn is_locked(&self) -> bool {
@@ -71,6 +78,7 @@ impl<T> SpinMutex<T> {
 
 pub struct SpinMutexGuard<'a, T> {
     mutex: &'a SpinMutex<T>,
+    _interrupt_guard: interrupt::Guard,
 }
 
 unsafe impl<T> Send for SpinMutexGuard<'_, T> where T: Send {}
@@ -83,8 +91,6 @@ impl<T> Drop for SpinMutexGuard<'_, T> {
             "SpinMutexGuard dropped without holding the lock"
         );
         self.mutex.locked.store(false, Ordering::Release);
-
-        // TODO: enable interrupts
     }
 }
 

@@ -17,6 +17,7 @@ publish = false
 allocator = { path = "crates/allocator" }
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.9.1"
+cfg-if = "1.0.1"
 custom_debug_derive = "0.6.2"
 dataview = "1.0.1"
 devicetree = { path = "crates/devicetree" }

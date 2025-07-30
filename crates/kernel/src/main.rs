@@ -34,12 +34,17 @@ fn boot_hart_start(boot_hartid: usize, dtb_pa: usize) -> ! {
     println!("Devicetree Address : {dtb_pa:#x}");
 
     let dtb_bytes = unsafe { memory::allocator::init(dtb_pa).unwrap() };
-
     let dtb = unsafe { Devicetree::from_addr(dtb_bytes.as_ptr().addr()).unwrap() };
     dump_dtb_tree(&dtb).unwrap();
 
     memory::kernel_space::init(&dtb).unwrap();
     memory::kernel_space::apply();
+    interrupt::trap::init();
+    interrupt::timer::init();
+
+    unsafe {
+        riscv::interrupt::enable();
+    }
 
     panic!("Kernel main function called");
 }
@@ -75,5 +80,6 @@ fn dump_dtb_tree(dtb: &Devicetree<'_>) -> Result<(), StructLexerError> {
             StructTokenWithData::End => break,
         }
     }
+
     Ok(())
 }

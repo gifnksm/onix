@@ -19,6 +19,7 @@ bench = false
 allocator.workspace = true
 arrayvec.workspace = true
 bitflags.workspace = true
+cfg-if.workspace = true
 dataview.workspace = true
 devicetree.workspace = true
 platform-cast.workspace = true
