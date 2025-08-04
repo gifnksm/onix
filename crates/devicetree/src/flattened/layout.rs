@@ -50,10 +50,10 @@ const HEADER_ALIGNMENT: usize = 8;
 const MEM_RSVMAP_ALIGNMENT: usize = 8;
 const STRUCTURE_ALIGNMENT: usize = 4;
 
-/// Errors that can occur during validation of a Device Tree header.
+/// Errors that can occur during validation of a Devicetree header.
 ///
 /// These errors indicate problems such as invalid magic numbers, incompatible
-/// versions, layout inconsistencies, or malformed strings within the DTB.
+/// versions, layout inconsistencies, or malformed strings within the FDT.
 #[derive(Debug, Snafu)]
 pub enum HeaderValidationError {
     #[snafu(display("invalid magic number: {magic}"))]
@@ -132,8 +132,8 @@ pub enum HeaderValidationError {
 
 /// Header for the devicetree.
 ///
-/// This structure appears at the beginning of a DTB blob and describes
-/// the layout and versioning of the DTB.
+/// This structure appears at the beginning of a FDT blob and describes
+/// the layout and versioning of the FDT.
 #[repr(C)]
 #[derive(custom_debug_derive::Debug, Pod)]
 pub struct Header {
@@ -166,7 +166,7 @@ pub struct Header {
 }
 
 impl Header {
-    /// Checks if the given address is valid for a DTB header.
+    /// Checks if the given address is valid for a FDT header.
     ///
     /// The address must be aligned to the required header alignment.
     #[must_use]
@@ -175,7 +175,7 @@ impl Header {
         addr.is_multiple_of(HEADER_ALIGNMENT)
     }
 
-    /// Validates the DTB header fields for correctness and layout.
+    /// Validates the FDT header fields for correctness and layout.
     ///
     /// Performs comprehensive validation including:
     ///
@@ -243,11 +243,11 @@ impl Header {
 
 const _: () = assert!(HEADER_ALIGNMENT.is_multiple_of(align_of::<Header>()));
 
-/// Represents a memory reservation entry in the DTB.
+/// Represents a memory reservation entry in the FDT.
 ///
 /// Each entry describes a reserved memory region with a start address and size.
 #[repr(C)]
-#[derive(custom_debug_derive::Debug, Pod)]
+#[derive(custom_debug_derive::Debug, Pod, Clone, Copy)]
 pub struct ReserveEntry {
     /// The start address of the reserved memory region.
     #[debug(format = "{:#x}")]
@@ -296,7 +296,7 @@ impl ReserveEntry {
     }
 }
 
-/// Structure token used in the DTB structure block.
+/// Structure token used in the FDT structure block.
 ///
 /// Each token marks the beginning or end of a node, a property, or other
 /// structure elements in the device tree.
@@ -319,7 +319,7 @@ impl StructToken {
     pub const END: u32 = 0x0000_0009;
 }
 
-/// Header for a property in the DTB structure block.
+/// Header for a property in the FDT structure block.
 ///
 /// Contains the length of the property value and the offset of the property
 /// name in the strings block.

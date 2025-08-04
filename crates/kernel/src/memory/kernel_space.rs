@@ -1,6 +1,5 @@
 use core::ops::Range;
 
-use devicetree::Devicetree;
 use riscv::{
     asm,
     register::satp::{self, Satp},
@@ -8,7 +7,9 @@ use riscv::{
 use spin::Once;
 
 use super::{
-    PAGE_SIZE, allocator, layout,
+    PAGE_SIZE,
+    allocator::{self, HeapLayout},
+    layout,
     page_table::sv39::{
         MapPageFlags, PageTableError, PageTableRoot,
         address::{PhysAddr, VirtAddr},
@@ -47,14 +48,14 @@ impl KernelPageTable {
 
 static KERNEL_PAGE_TABLE: Once<KernelPageTable> = Once::new();
 
-pub fn init(dtb: &Devicetree<'_>) -> Result<(), PageTableError> {
+pub fn init(heap_layout: &HeapLayout) -> Result<(), PageTableError> {
     let mut kpgtbl = KernelPageTable::new()?;
 
     kpgtbl.identity_map_range(layout::kernel_rx_range(), MapPageFlags::RX)?;
     kpgtbl.identity_map_range(layout::kernel_ro_range(), MapPageFlags::R)?;
     kpgtbl.identity_map_range(layout::kernel_rw_range(), MapPageFlags::RW)?;
 
-    allocator::update_kernel_page_table(&mut kpgtbl, dtb)?;
+    allocator::update_kernel_page_table(&mut kpgtbl, heap_layout)?;
 
     KERNEL_PAGE_TABLE.call_once(|| kpgtbl);
 

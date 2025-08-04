@@ -1,6 +1,6 @@
 use core::{iter::FusedIterator, ops::Range, ptr};
 
-use devicetree::{
+use devicetree::flattened::{
     Devicetree,
     node::{Children, GetPropertyError, Node, ParseStructError, RegIter},
 };

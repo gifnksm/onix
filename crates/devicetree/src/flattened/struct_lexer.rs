@@ -21,16 +21,16 @@ use dataview::Pod;
 use platform_cast::CastFrom as _;
 use snafu::{Location, OptionExt as _, ResultExt as _, Snafu};
 
-use crate::{
+use super::{
     Devicetree,
-    fdt::{PropHeader, StructToken},
-    property::Property,
+    layout::{PropHeader, StructToken},
 };
+use crate::common::property::Property;
 
-/// Errors that can occur while tokenizing a Flattened Devicetree (DTB).
+/// Errors that can occur while tokenizing a Flattened Devicetree (FDT).
 ///
 /// This enum represents all possible error conditions encountered during
-/// tokenizing or interpreting a DTB blob, such as invalid alignment, magic
+/// tokenizing or interpreting a FDT blob, such as invalid alignment, magic
 /// number, version incompatibility, malformed layout, or invalid strings.
 #[derive(Debug, Clone, Snafu)]
 pub enum StructLexerError {

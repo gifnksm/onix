@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ops::Range,
@@ -7,7 +6,7 @@ use core::{
 
 use allocator::fixed_size_block::FixedSizeBlockAllocator;
 use arrayvec::ArrayVec;
-use devicetree::Devicetree;
+use devicetree::flattened::layout::ReserveEntry;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
 
@@ -57,14 +56,25 @@ pub enum AllocatorInitError {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: devicetree::CreateError,
+        source: devicetree::flattened::CreateError,
+    },
+    #[snafu(display("failed to parse devicetree: {source}"))]
+    DtbParse {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: devicetree::flattened::node::ParseStructError,
     },
 }
 
-pub unsafe fn init(dtb_pa: usize) -> Result<Box<[u8]>, AllocatorInitError> {
-    let dtb = unsafe { Devicetree::from_addr(dtb_pa) }.context(DtbCreateSnafu)?;
+pub unsafe fn init(
+    dtb_pa: usize,
+) -> Result<(devicetree::parsed::Devicetree, HeapLayout), AllocatorInitError> {
+    let dtb =
+        unsafe { devicetree::flattened::Devicetree::from_addr(dtb_pa) }.context(DtbCreateSnafu)?;
 
-    let heap_ranges = compute_heap_range(&dtb, true, true)?;
+    let heap_layout = HeapLayout::new(&dtb)?;
+    let heap_ranges = heap_layout.compute_heap_range(true, true);
 
     for range in &heap_ranges {
         let mut allocator = ALLOCATOR.allocator.lock();
@@ -76,10 +86,11 @@ pub unsafe fn init(dtb_pa: usize) -> Result<Box<[u8]>, AllocatorInitError> {
         }
     }
 
-    let dtb_bytes = Box::<[u8]>::from(dtb.as_bytes());
+    let dtree = dtb.parse().context(DtbParseSnafu)?;
+
     {
         let mut allocator = ALLOCATOR.allocator.lock();
-        let dtb_range = layout::dtb_range(&dtb);
+        let dtb_range = &heap_layout.dtb_range;
         unsafe {
             allocator.add_heap(
                 ptr::with_exposed_provenance_mut(dtb_range.start),
@@ -88,18 +99,69 @@ pub unsafe fn init(dtb_pa: usize) -> Result<Box<[u8]>, AllocatorInitError> {
         }
     }
 
-    Ok(dtb_bytes)
+    Ok((dtree, heap_layout))
 }
 
 pub fn update_kernel_page_table(
     kpgtbl: &mut KernelPageTable,
-    dtb: &Devicetree<'_>,
+    heap_layout: &HeapLayout,
 ) -> Result<(), PageTableError> {
-    let rw_ranges = compute_heap_range(dtb, false, false).unwrap();
+    let rw_ranges = heap_layout.compute_heap_range(false, false);
     for range in rw_ranges {
         kpgtbl.identity_map_range(range, MapPageFlags::RW)?;
     }
     Ok(())
+}
+
+pub struct HeapLayout {
+    memory_ranges: ArrayVec<Range<usize>, 128>,
+    reserved_ranges: ArrayVec<Range<usize>, 128>,
+    dtb_range: Range<usize>,
+}
+
+impl HeapLayout {
+    fn new(dtb: &devicetree::flattened::Devicetree) -> Result<Self, AllocatorInitError> {
+        let mut memory_ranges = ArrayVec::<Range<usize>, 128>::new();
+        for range in layout::memory_addr_ranges(dtb).context(MemoryAddrRangesSnafu)? {
+            let range = range.context(MemoryAddrRangesSnafu)?;
+            memory_ranges.push(range);
+        }
+        let mut reserved_ranges = dtb
+            .mem_rsvmap()
+            .iter()
+            .map(ReserveEntry::range)
+            .collect::<ArrayVec<_, _>>();
+        reserved_ranges.push(layout::opensbi_reserved_range());
+        reserved_ranges.push(layout::kernel_reserved_range());
+
+        let dtb_range = layout::dtb_range(dtb);
+        Ok(Self {
+            memory_ranges,
+            reserved_ranges,
+            dtb_range,
+        })
+    }
+
+    fn compute_heap_range(
+        &self,
+        exclude_boot_stack: bool,
+        exclude_dtb: bool,
+    ) -> ArrayVec<Range<usize>, 128> {
+        let mut heap_ranges = self.memory_ranges.clone();
+
+        for reserved in &self.reserved_ranges {
+            exclude_reserved_range(&mut heap_ranges, reserved.clone());
+        }
+
+        if exclude_boot_stack {
+            exclude_reserved_range(&mut heap_ranges, layout::kernel_boot_stack_range());
+        }
+        if exclude_dtb {
+            exclude_reserved_range(&mut heap_ranges, self.dtb_range.clone());
+        }
+
+        heap_ranges
+    }
 }
 
 fn exclude_reserved_range<const N: usize>(
@@ -120,30 +182,4 @@ fn exclude_reserved_range<const N: usize>(
         }
     }
     *ranges = out;
-}
-
-fn compute_heap_range(
-    dtb: &Devicetree<'_>,
-    exclude_boot_stack: bool,
-    exclude_dtb: bool,
-) -> Result<ArrayVec<Range<usize>, 128>, AllocatorInitError> {
-    let mut heap_ranges = ArrayVec::<Range<usize>, 128>::new();
-    for range in layout::memory_addr_ranges(dtb).context(MemoryAddrRangesSnafu)? {
-        let range = range.context(MemoryAddrRangesSnafu)?;
-        heap_ranges.push(range);
-    }
-
-    for entry in dtb.mem_rsvmap() {
-        exclude_reserved_range(&mut heap_ranges, entry.range());
-    }
-    exclude_reserved_range(&mut heap_ranges, layout::opensbi_reserved_range());
-    exclude_reserved_range(&mut heap_ranges, layout::kernel_reserved_range());
-    if exclude_boot_stack {
-        exclude_reserved_range(&mut heap_ranges, layout::kernel_boot_stack_range());
-    }
-    if exclude_dtb {
-        exclude_reserved_range(&mut heap_ranges, layout::dtb_range(dtb));
-    }
-
-    Ok(heap_ranges)
 }

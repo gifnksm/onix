@@ -37,15 +37,20 @@
 //! }
 //! ```
 
-use core::{iter::FusedIterator, ops::Range};
+use alloc::{
+    sync::{Arc, Weak},
+    vec::Vec,
+};
+use core::{fmt, iter::FusedIterator, ops::Range};
 
 use platform_cast::CastFrom as _;
 use snafu::{IntoError as _, OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 
+use super::struct_lexer::{StructLexer, StructLexerError, StructTokenWithData};
 use crate::{
-    property::{ParsePropertyValueError, Property},
-    struct_lexer::{StructLexer, StructLexerError, StructTokenWithData},
+    common::property::{ParsePropertyValueError, Property},
+    parsed,
 };
 
 #[derive(Debug, Snafu)]
@@ -79,6 +84,7 @@ pub enum ParseStructError {
 /// Nodes represent hardware components and their relationships in the system.
 /// Each node has a name, optional unit address, properties describing its
 /// characteristics, and may contain child nodes.
+#[derive(Debug)]
 pub struct Node<'fdt, 'tree> {
     name: &'fdt str,
     address: Option<&'fdt str>,
@@ -235,6 +241,98 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
                 }
             }
         }
+    }
+
+    pub(crate) fn parse(
+        &self,
+        parent: Weak<parsed::node::NodeInner>,
+        string_block: &[u8],
+    ) -> Result<Arc<parsed::node::NodeInner>, ParseStructError> {
+        fn init_node(
+            new_node: &mut parsed::node::NodeInner,
+            new_node_ref: &Weak<parsed::node::NodeInner>,
+            node: &Node<'_, '_>,
+            string_block: &[u8],
+        ) -> Result<(), ParseStructError> {
+            for prop in node.properties() {
+                let prop = prop?;
+                new_node.properties.push(parsed::node::PropertyInner {
+                    name_range: if prop.name().is_empty() {
+                        0..0
+                    } else {
+                        string_block.subslice_range(prop.name().as_bytes()).unwrap()
+                    },
+                    value: prop.raw_value().into(),
+                });
+            }
+            for child in node.children() {
+                let child = child?;
+                new_node
+                    .children
+                    .push(child.parse(Weak::clone(new_node_ref), string_block)?);
+            }
+            Ok(())
+        }
+
+        let mut result = Ok(());
+        let node = Arc::new_cyclic(|node_ref| {
+            let mut node = parsed::node::NodeInner {
+                name: self.name.into(),
+                address: self.address.map(Into::into),
+                properties: Vec::new(),
+                parent,
+                children: Vec::new(),
+            };
+            if let Err(e) = init_node(&mut node, node_ref, self, string_block) {
+                result = Err(e);
+            }
+            node
+        });
+        result?;
+        Ok(node)
+    }
+}
+
+impl fmt::Display for Node<'_, '_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fn fmt(nest: usize, node: &Node<'_, '_>, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let name = if nest == 0 && node.name().is_empty() {
+                "/"
+            } else {
+                node.name()
+            };
+            writeln!(f)?;
+            if let Some(address) = node.address() {
+                writeln!(f, "{:indent$}{name}@{address} {{", "", indent = nest * 4)?;
+            } else {
+                writeln!(f, "{:indent$}{name} {{", "", indent = nest * 4)?;
+            }
+            for prop in node.properties() {
+                let Ok(prop) = prop else {
+                    return Err(fmt::Error);
+                };
+                let name = prop.name();
+                let Ok(value) = prop.value() else {
+                    return Err(fmt::Error);
+                };
+                writeln!(
+                    f,
+                    "{:indent$}{name} = {value};",
+                    "",
+                    indent = (nest + 1) * 4
+                )?;
+            }
+            for child in node.children() {
+                let Ok(child) = child else {
+                    return Err(fmt::Error);
+                };
+                fmt(nest + 1, &child, f)?;
+            }
+            writeln!(f, "{:indent$}}};", "", indent = nest * 4)?;
+            Ok(())
+        }
+
+        fmt(0, self, f)
     }
 }
 

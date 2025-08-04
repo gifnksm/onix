@@ -4,11 +4,6 @@
 
 extern crate alloc;
 
-use devicetree::{
-    Devicetree,
-    struct_lexer::{StructLexerError, StructTokenWithData},
-};
-
 mod boot;
 mod console;
 mod interrupt;
@@ -33,11 +28,10 @@ fn boot_hart_start(boot_hartid: usize, dtb_pa: usize) -> ! {
     println!("Boot Hart ID : {boot_hartid}");
     println!("Devicetree Address : {dtb_pa:#x}");
 
-    let dtb_bytes = unsafe { memory::allocator::init(dtb_pa).unwrap() };
-    let dtb = unsafe { Devicetree::from_addr(dtb_bytes.as_ptr().addr()).unwrap() };
-    dump_dtb_tree(&dtb).unwrap();
+    let (dtree, heap_layout) = unsafe { memory::allocator::init(dtb_pa).unwrap() };
+    println!("\nDevicetree:\n{}", dtree.root_node());
 
-    memory::kernel_space::init(&dtb).unwrap();
+    memory::kernel_space::init(&heap_layout).unwrap();
     memory::kernel_space::apply();
     interrupt::trap::init();
     interrupt::timer::init();
@@ -47,39 +41,4 @@ fn boot_hart_start(boot_hartid: usize, dtb_pa: usize) -> ! {
     }
 
     panic!("Kernel main function called");
-}
-
-fn dump_dtb_tree(dtb: &Devicetree<'_>) -> Result<(), StructLexerError> {
-    println!("\nDevicetree:");
-    let mut nest = 0;
-    for entry in dtb.struct_lexer() {
-        let entry = entry?;
-        match entry {
-            StructTokenWithData::BeginNode { mut name, address } => {
-                if nest == 0 && name.is_empty() {
-                    name = "/";
-                }
-                println!();
-                if let Some(address) = address {
-                    println!("{:indent$}{name}@{address} {{", "", indent = nest * 4);
-                } else {
-                    println!("{:indent$}{name} {{", "", indent = nest * 4);
-                }
-                nest += 1;
-            }
-            StructTokenWithData::EndNode => {
-                nest -= 1;
-                println!("{:indent$}}};", "", indent = nest * 4);
-            }
-            StructTokenWithData::Prop(p) => {
-                let name = p.name();
-                let value = p.value().unwrap();
-                println!("{:indent$}{name} = {value};", "", indent = nest * 4);
-            }
-            StructTokenWithData::Nop => {}
-            StructTokenWithData::End => break,
-        }
-    }
-
-    Ok(())
 }
