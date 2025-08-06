@@ -6,7 +6,7 @@
 
 use crate::SbiRet;
 
-const EXTENSION_ID: usize = 0x4442_434E; // 'DBCN' in ASCII
+pub const EXTENSION_ID: usize = 0x44_42_43_4E; // 'DBCN' in ASCII
 
 /// Writes bytes to the debug console from input memory.
 ///

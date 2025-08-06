@@ -27,7 +27,7 @@ pub(super) extern "C" fn trap_kernel() {
             panic!("unexpected kernel exception {e:#?}, sepc={sepc:#x}, stval={stval:#x}");
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
-            crate::println!("ticks");
+            crate::println!("ticks (CPU ID: {})", crate::cpu::current().id());
             super::timer::handle_interrupt();
         }
         Trap::Interrupt(int) => {

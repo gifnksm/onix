@@ -1,4 +1,7 @@
-use core::ptr;
+use core::{
+    hint, ptr,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use crate::memory;
 
@@ -29,5 +32,25 @@ unsafe extern "C" fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
 }
 
 unsafe extern "C" fn primary_cpu_reentry() -> ! {
-    crate::primary_cpu_reentry()
+    crate::main()
+}
+
+static CPU_STARTED: AtomicBool = AtomicBool::new(false);
+
+pub fn start_secondary_cpu(cpuid: usize) {
+    CPU_STARTED.store(false, Ordering::Release);
+    imp::start_secondary_cpu(cpuid);
+    while !CPU_STARTED.load(Ordering::Acquire) {
+        // Wait for the secondary CPU to start
+        hint::spin_loop();
+    }
+}
+
+unsafe extern "C" fn secondary_cpu_entry(cpuid: usize) -> *mut u8 {
+    crate::secondary_cpu_entry(cpuid)
+}
+
+unsafe extern "C" fn secondary_cpu_reentry() -> ! {
+    CPU_STARTED.store(true, Ordering::Release);
+    crate::main()
 }

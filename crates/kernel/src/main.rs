@@ -2,6 +2,14 @@
 #![no_std]
 #![no_main]
 
+use core::{
+    hint,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
+use devicetree::parsed::Devicetree;
+use spin::Once;
+
 extern crate alloc;
 
 mod boot;
@@ -23,22 +31,42 @@ const ONIX_LOGO: &str = r"
  \____/|_| |_|_/_/\_\
 ";
 
+static PRIMARY_CPUID: AtomicUsize = AtomicUsize::new(usize::MAX);
+static DEVICETREE: Once<Devicetree> = Once::new();
+
 fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
-    println!("\n\nOnix v{ONIX_VERSION}\n{ONIX_LOGO}");
+    PRIMARY_CPUID.store(cpuid, Ordering::Release);
+
+    println!();
+    println!();
+    println!("Onix v{ONIX_VERSION}");
+    println!("{ONIX_LOGO}");
 
     let (dtree, heap_layout) = unsafe { memory::allocator::init(dtb_pa).unwrap() };
-    println!("\nDevicetree:\n{}", dtree.root_node());
+    DEVICETREE.call_once(|| dtree);
+    let dtree = DEVICETREE.get().unwrap();
 
-    cpu::init(&dtree).unwrap();
+    cpu::init(dtree).unwrap();
     cpu::set_current_cpuid(cpuid);
-
     memory::kernel_space::init(&heap_layout).unwrap();
     memory::kernel_space::apply();
-
-    cpu::current_cpu().stack_top()
+    cpu::current().stack_top()
 }
 
-fn primary_cpu_reentry() -> ! {
+fn secondary_cpu_entry(cpuid: usize) -> *mut u8 {
+    cpu::set_current_cpuid(cpuid);
+    memory::kernel_space::apply();
+    cpu::current().stack_top()
+}
+
+fn main() -> ! {
+    let primary_cpuid = PRIMARY_CPUID.load(Ordering::Acquire);
+    let is_primary = primary_cpuid == cpu::current().id();
+
+    if is_primary {
+        start_secondary_cpus();
+    }
+
     interrupt::trap::apply();
     interrupt::timer::start();
 
@@ -46,7 +74,21 @@ fn primary_cpu_reentry() -> ! {
         riscv::interrupt::enable();
     }
 
-    let cpu = cpu::current_cpu();
+    if is_primary {
+        println!("Devicetree: {}", DEVICETREE.get().unwrap().root_node());
+    }
 
-    panic!("Kernel main function called (CPU ID: {})", cpu.id());
+    println!("CPU initialized (CPU ID: {})", cpu::current().id());
+    loop {
+        hint::spin_loop();
+    }
+}
+
+fn start_secondary_cpus() {
+    for cpu in cpu::get_all() {
+        if cpu.is_current() {
+            continue;
+        }
+        boot::start_secondary_cpu(cpu.id());
+    }
 }

@@ -33,6 +33,10 @@ impl Cpu {
     pub fn stack_top(&self) -> *mut u8 {
         self.stack_top
     }
+
+    pub fn is_current(&self) -> bool {
+        self.index == current_index()
+    }
 }
 
 static CPUS: Once<Vec<Cpu>> = Once::new();
@@ -166,11 +170,18 @@ pub fn set_current_cpuid(cpuid: usize) {
     }
 }
 
-pub fn current_cpu() -> &'static Cpu {
-    let cpus = CPUS.get().unwrap();
+pub fn current_index() -> usize {
     let index: usize;
     unsafe {
         asm!("mv {}, tp", out(reg) index);
     }
-    &cpus[index]
+    index
+}
+
+pub fn current() -> &'static Cpu {
+    &CPUS.get().unwrap()[current_index()]
+}
+
+pub fn get_all() -> &'static [Cpu] {
+    CPUS.get().unwrap()
 }

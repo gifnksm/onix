@@ -89,8 +89,6 @@ pub fn apply() {
     }
 
     asm::sfence_vma_all();
-
-    crate::println!("{kpgtbl:#?}");
 }
 
 pub fn kernel_stack_ranges(cpu_index: usize) -> Range<usize> {

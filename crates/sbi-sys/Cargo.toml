@@ -11,6 +11,7 @@ keywords.workspace = true
 publish.workspace = true
 
 [dependencies]
+platform-cast.workspace = true
 
 [lints]
 workspace = true

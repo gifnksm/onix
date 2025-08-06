@@ -7,3 +7,10 @@ unsafe extern "C" fn entry() {
     let _ = unsafe { super::super::BOOT_STACK_TOP };
     unimplemented!("unsupported architecture");
 }
+
+pub fn start_secondary_cpu(_cpuid: usize) {
+    let _ = super::super::secondary_cpu_entry;
+    let _ = super::super::secondary_cpu_reentry;
+    let _ = unsafe { super::super::BOOT_STACK_TOP };
+    unimplemented!("unsupported architecture");
+}
