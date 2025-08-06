@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 use core::{
-    alloc::AllocError,
+    alloc::{AllocError, Layout},
     fmt::{self, DebugMap},
 };
 
@@ -22,9 +22,15 @@ mod table;
 #[derive(Debug, Snafu)]
 pub enum PageTableError {
     #[snafu(display("failed to allocate new page table"))]
-    AllocPage {
+    AllocPageTable {
         #[snafu(source)]
         source: AllocError,
+        #[snafu(implicit)]
+        location: Location,
+    },
+    #[snafu(display("failed to allocate new page table entry, layout: {layout:?}"))]
+    AllocPage {
+        layout: Layout,
         #[snafu(implicit)]
         location: Location,
     },
@@ -44,30 +50,25 @@ pub enum PageTableError {
 bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct MapPageFlags: u64 {
-        /// Valid Bit of page table entry.
-        ///
-        /// If set, an entry for this virtual address exists.
-        const V = PageFlags::V.bits();
-
         /// Read Bit of page table entry.
         ///
         /// If set, the CPU can read to this virtual address.
-        const R = PageFlags::R.bits();
+        const R = 1 << 0;
 
         /// Write Bit of page table entry.
         ///
         /// If set, the CPU can write to this virtual address.
-        const W = PageFlags::W.bits();
+        const W = 1 << 1;
 
         /// Executable Bit of page table entry.
         ///
         /// If set, the CPU can execute instructions on this virtual address.
-        const X = PageFlags::X.bits();
+        const X = 1 << 2;
 
         /// UserMode Bit of page table entry.
         ///
         /// If set, userspace can access this virtual address.
-        const U = PageFlags::U.bits();
+        const U = 1 << 3;
 
         const RW = Self::R.bits() | Self::W.bits();
         const RX = Self::R.bits() | Self::X.bits();
@@ -106,12 +107,21 @@ impl PageTableRoot {
         satp
     }
 
+    pub fn allocate_pages(
+        &mut self,
+        virt_page_num: VirtPageNum,
+        count: usize,
+        flags: MapPageFlags,
+    ) -> Result<usize, PageTableError> {
+        self.as_mut().allocate_pages(virt_page_num, count, flags)
+    }
+
     pub fn map_fixed_pages(
         &mut self,
         virt_page_num: VirtPageNum,
         phys_page_num: PhysPageNum,
-        flags: MapPageFlags,
         count: usize,
+        flags: MapPageFlags,
     ) -> Result<usize, PageTableError> {
         self.as_mut()
             .map_fixed_pages(virt_page_num, phys_page_num, count, flags)

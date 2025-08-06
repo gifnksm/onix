@@ -9,8 +9,8 @@ use riscv::{
 
 mod imp;
 
-pub fn init() {
-    imp::init();
+pub fn apply() {
+    imp::apply();
 }
 
 pub(super) extern "C" fn trap_kernel() {

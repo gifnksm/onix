@@ -32,9 +32,10 @@
 //! }
 //! ```
 
-use core::{fmt, iter::FusedIterator, str::Utf8Error};
+use core::{fmt, iter::FusedIterator, ops::Range, str::Utf8Error};
 
-use snafu::{OptionExt as _, ResultExt as _, Snafu};
+use platform_cast::CastFrom as _;
+use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 
 #[derive(Debug, Snafu)]
@@ -46,11 +47,30 @@ pub enum ParsePropertyValueError {
     },
     #[snafu(display("invalid <string>: {source}"))]
     Utf8 {
+        #[snafu(implicit)]
+        location: Location,
         #[snafu(source)]
         source: Utf8Error,
     },
     #[snafu(display("invalid value length. expected: {expected}, actual: {actual}"))]
-    InvalidValueLength { expected: usize, actual: usize },
+    InvalidValueLength {
+        expected: usize,
+        actual: usize,
+        #[snafu(implicit)]
+        location: Location,
+    },
+    #[snafu(display("invalid `#address-cells`: {address_cells}"))]
+    InvalidAddressCells {
+        address_cells: usize,
+        #[snafu(implicit)]
+        location: Location,
+    },
+    #[snafu(display("invalid `#size-cells`: {size_cells}"))]
+    InvalidSizeCells {
+        size_cells: usize,
+        #[snafu(implicit)]
+        location: Location,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,7 +239,139 @@ impl<'a> Property<'a> {
         let s = str::from_utf8(bytes).context(Utf8Snafu)?;
         Ok(StringList { value: s })
     }
+
+    pub fn value_as_reg(
+        &self,
+        address_cells: usize,
+        size_cells: usize,
+    ) -> Result<RegIter<'a>, ParsePropertyValueError> {
+        ensure!(
+            (1..=2).contains(&address_cells),
+            InvalidAddressCellsSnafu { address_cells }
+        );
+        ensure!(
+            (0..=2).contains(&size_cells),
+            InvalidSizeCellsSnafu { size_cells }
+        );
+        ensure!(
+            self.value
+                .len()
+                .is_multiple_of((address_cells + size_cells) * size_of::<u32>()),
+            InvalidValueLengthSnafu {
+                expected: address_cells + size_cells,
+                actual: self.value.len(),
+            }
+        );
+        Ok(RegIter {
+            address_cells,
+            size_cells,
+            bytes: self.value,
+        })
+    }
 }
+
+/// A register entry from a "reg" property.
+///
+/// Contains an address and size pair describing a memory region
+/// used by a device.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Reg {
+    /// The starting address of the memory region
+    pub address: usize,
+    /// The size of the memory region in bytes
+    pub size: usize,
+}
+
+impl Reg {
+    /// Returns the memory range as a Rust Range.
+    ///
+    /// # Returns
+    ///
+    /// A range from `address` to `address + size`, capped to prevent overflow.
+    #[must_use]
+    pub fn range(&self) -> Range<usize> {
+        self.address..self.address.saturating_add(self.size)
+    }
+}
+
+/// Iterator over register entries in a "reg" property.
+///
+/// Parses the binary data in a "reg" property according to the
+/// parent node's #address-cells and #size-cells values.
+#[derive(Debug, Clone)]
+pub struct RegIter<'fdt> {
+    address_cells: usize,
+    size_cells: usize,
+    bytes: &'fdt [u8],
+}
+
+impl Iterator for RegIter<'_> {
+    type Item = Reg;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        fn split_first<const N: usize>(bytes: &mut &[u8]) -> [u8; N] {
+            let chunk;
+            (chunk, *bytes) = bytes.split_first_chunk().unwrap();
+            *chunk
+        }
+
+        if self.bytes.is_empty() {
+            return None;
+        }
+
+        let address = match self.address_cells {
+            1 => usize::cast_from(u32::from_be_bytes(split_first(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_first(&mut self.bytes))),
+            _ => unreachable!("address_cells must be 1 or 2"),
+        };
+
+        let size = match self.size_cells {
+            0 => 0,
+            1 => usize::cast_from(u32::from_be_bytes(split_first(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_first(&mut self.bytes))),
+            _ => unreachable!("size_cells must be 0, 1, or 2"),
+        };
+
+        Some(Reg { address, size })
+    }
+}
+
+impl DoubleEndedIterator for RegIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        fn split_last<const N: usize>(bytes: &mut &[u8]) -> [u8; N] {
+            let chunk;
+            (*bytes, chunk) = bytes.split_last_chunk().unwrap();
+            *chunk
+        }
+
+        if self.bytes.is_empty() {
+            return None;
+        }
+
+        let size = match self.size_cells {
+            0 => 0,
+            1 => usize::cast_from(u32::from_be_bytes(split_last(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_last(&mut self.bytes))),
+            _ => unreachable!("size_cells must be 0, 1, or 2"),
+        };
+
+        let address = match self.address_cells {
+            1 => usize::cast_from(u32::from_be_bytes(split_last(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_last(&mut self.bytes))),
+            _ => unreachable!("address_cells must be 1 or 2"),
+        };
+
+        Some(Reg { address, size })
+    }
+}
+
+impl ExactSizeIterator for RegIter<'_> {
+    fn len(&self) -> usize {
+        self.bytes.len() / (self.address_cells + self.size_cells) / size_of::<u32>()
+    }
+}
+
+impl FusedIterator for RegIter<'_> {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PropertyValue<'a> {

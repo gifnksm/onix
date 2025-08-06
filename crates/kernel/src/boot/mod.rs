@@ -21,9 +21,13 @@ unsafe fn init_bss() {
     }
 }
 
-unsafe extern "C" fn boot_hart_start(hartid: usize, dtb_pa: usize) -> ! {
+unsafe extern "C" fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     unsafe {
         init_bss();
     }
-    crate::boot_hart_start(hartid, dtb_pa);
+    crate::primary_cpu_entry(cpuid, dtb_pa)
+}
+
+unsafe extern "C" fn primary_cpu_reentry() -> ! {
+    crate::primary_cpu_reentry()
 }

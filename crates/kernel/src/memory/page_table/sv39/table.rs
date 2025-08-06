@@ -22,7 +22,7 @@ pub(super) struct PageTable([PageTableEntry; NUM_ENTRIES]);
 
 impl PageTable {
     pub(super) fn try_allocate() -> Result<Box<Self>, PageTableError> {
-        let pt = Box::try_new_zeroed().context(super::AllocPageSnafu)?;
+        let pt = Box::try_new_zeroed().context(super::AllocPageTableSnafu)?;
         Ok(unsafe { pt.assume_init() })
     }
 }
@@ -102,6 +102,40 @@ where
         let level = self.level;
         let base_vpn = self.entry_base_vpn(index);
         PageTableEntryRef::new(&mut self.pt.0[index], level, base_vpn)
+    }
+
+    pub(super) fn allocate_pages(
+        &mut self,
+        vpn_base: VirtPageNum,
+        count: usize,
+        flags: MapPageFlags,
+    ) -> Result<usize, PageTableError> {
+        let page_count_per_entry = 1 << (self.level * 9);
+
+        let mut mapped_count = 0;
+        for level_index in vpn_base.level_index(self.level)..NUM_ENTRIES {
+            if mapped_count >= count {
+                break;
+            }
+
+            let vpn = vpn_base.add(mapped_count);
+            assert_eq!(level_index, vpn.level_index(self.level));
+            assert!(self.min_vpn() <= vpn && vpn <= self.max_vpn());
+
+            if vpn.is_level_aligned(self.level) && (count - mapped_count) >= page_count_per_entry {
+                self.entry_mut(level_index).allocate_page(flags)?;
+                mapped_count += page_count_per_entry;
+                continue;
+            }
+
+            mapped_count += self
+                .entry_mut(level_index)
+                .get_or_insert_next_level_table()?
+                .allocate_pages(vpn, count - mapped_count, flags)?;
+        }
+        assert!(mapped_count <= count);
+
+        Ok(mapped_count)
     }
 
     pub(super) fn map_fixed_pages(

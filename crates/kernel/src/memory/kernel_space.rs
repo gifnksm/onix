@@ -15,7 +15,9 @@ use super::{
         address::{PhysAddr, VirtAddr},
     },
 };
-use crate::memory::Align as _;
+use crate::{cpu, memory::Align as _};
+
+const STACK_SIZE: usize = 128 * 1024;
 
 #[derive(Debug)]
 pub struct KernelPageTable {
@@ -38,7 +40,19 @@ impl KernelPageTable {
         let start_vpn = VirtAddr::from_addr(addr_range.start).page_num();
         let start_ppn = PhysAddr::from_addr(addr_range.start).page_num();
         let count = addr_range.len() / PAGE_SIZE;
-        self.pt.map_fixed_pages(start_vpn, start_ppn, flags, count)
+        self.pt.map_fixed_pages(start_vpn, start_ppn, count, flags)
+    }
+
+    pub fn allocate_virt_addr_range(
+        &mut self,
+        addr_range: Range<usize>,
+        flags: MapPageFlags,
+    ) -> Result<usize, PageTableError> {
+        assert!(addr_range.start.is_page_aligned());
+        assert!(addr_range.end.is_page_aligned());
+        let start_vpn = VirtAddr::from_addr(addr_range.start).page_num();
+        let count = addr_range.len() / PAGE_SIZE;
+        self.pt.allocate_pages(start_vpn, count, flags)
     }
 
     fn satp(&self) -> Satp {
@@ -56,6 +70,7 @@ pub fn init(heap_layout: &HeapLayout) -> Result<(), PageTableError> {
     kpgtbl.identity_map_range(layout::kernel_rw_range(), MapPageFlags::RW)?;
 
     allocator::update_kernel_page_table(&mut kpgtbl, heap_layout)?;
+    cpu::update_kernel_page_table(&mut kpgtbl)?;
 
     KERNEL_PAGE_TABLE.call_once(|| kpgtbl);
 
@@ -76,4 +91,9 @@ pub fn apply() {
     asm::sfence_vma_all();
 
     crate::println!("{kpgtbl:#?}");
+}
+
+pub fn kernel_stack_ranges(cpu_index: usize) -> Range<usize> {
+    let base = 0xffff_ffff_0000_0000 + STACK_SIZE * 2 * cpu_index;
+    base..base + STACK_SIZE
 }

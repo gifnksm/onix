@@ -8,7 +8,7 @@ const TICKS_PER_SEC: u64 = 10;
 const NANOS_PER_TICK: u64 = NANOS_PER_SEC / TICKS_PER_SEC;
 const CLOCKS_PER_TICK: u64 = NANOS_PER_TICK / NANOS_PER_CLOCK;
 
-pub fn init() {
+pub fn start() {
     // allow user to use time.
     unsafe {
         scounteren::set_tm();

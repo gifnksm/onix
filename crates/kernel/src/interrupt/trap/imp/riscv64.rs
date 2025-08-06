@@ -5,7 +5,7 @@ use riscv::register::{
     stvec::{self, Stvec, TrapMode},
 };
 
-pub fn init() {
+pub fn apply() {
     unsafe {
         let mut sie = sie::read();
         sie.set_sext(true);

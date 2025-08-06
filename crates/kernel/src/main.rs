@@ -6,6 +6,7 @@ extern crate alloc;
 
 mod boot;
 mod console;
+mod cpu;
 mod interrupt;
 mod memory;
 mod spinlock;
@@ -22,23 +23,30 @@ const ONIX_LOGO: &str = r"
  \____/|_| |_|_/_/\_\
 ";
 
-fn boot_hart_start(boot_hartid: usize, dtb_pa: usize) -> ! {
+fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     println!("\n\nOnix v{ONIX_VERSION}\n{ONIX_LOGO}");
-
-    println!("Boot Hart ID : {boot_hartid}");
-    println!("Devicetree Address : {dtb_pa:#x}");
 
     let (dtree, heap_layout) = unsafe { memory::allocator::init(dtb_pa).unwrap() };
     println!("\nDevicetree:\n{}", dtree.root_node());
 
+    cpu::init(&dtree).unwrap();
+    cpu::set_current_cpuid(cpuid);
+
     memory::kernel_space::init(&heap_layout).unwrap();
     memory::kernel_space::apply();
-    interrupt::trap::init();
-    interrupt::timer::init();
+
+    cpu::current_cpu().stack_top()
+}
+
+fn primary_cpu_reentry() -> ! {
+    interrupt::trap::apply();
+    interrupt::timer::start();
 
     unsafe {
         riscv::interrupt::enable();
     }
 
-    panic!("Kernel main function called");
+    let cpu = cpu::current_cpu();
+
+    panic!("Kernel main function called (CPU ID: {})", cpu.id());
 }

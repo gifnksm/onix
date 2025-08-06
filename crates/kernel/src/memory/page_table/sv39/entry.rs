@@ -1,15 +1,19 @@
 use alloc::boxed::Box;
-use core::ops::{Deref, DerefMut};
+use core::{
+    alloc::Layout,
+    ops::{Deref, DerefMut},
+};
 
 use bitflags::bitflags;
 use dataview::Pod;
+use snafu::ensure;
 
 use super::{
     MapPageFlags, PageTable, PageTableError,
     address::{PhysPageNum, VirtAddr, VirtPageNum},
     table::PageTableRef,
 };
-use crate::memory::page_table::sv39::address::PhysAddr;
+use crate::memory::{PAGE_SIZE, page_table::sv39::address::PhysAddr};
 
 bitflags! {
     /// Flags for SV39 page table entries.
@@ -68,6 +72,25 @@ bitflags! {
     }
 }
 
+impl From<MapPageFlags> for PageFlags {
+    fn from(form: MapPageFlags) -> Self {
+        let mut flags = Self::empty();
+        if form.contains(MapPageFlags::R) {
+            flags |= Self::R;
+        }
+        if form.contains(MapPageFlags::W) {
+            flags |= Self::W;
+        }
+        if form.contains(MapPageFlags::X) {
+            flags |= Self::X;
+        }
+        if form.contains(MapPageFlags::U) {
+            flags |= Self::U;
+        }
+        flags
+    }
+}
+
 /// Represents a single SV39 page table entry.
 ///
 /// This structure encapsulates the physical address and flags associated with
@@ -117,6 +140,11 @@ impl<R> PageTableEntryRef<R> {
 
     pub(super) fn max_virt_addr(&self) -> VirtAddr {
         VirtAddr::max_in_page(self.max_vpn())
+    }
+
+    fn page_layout(&self) -> Layout {
+        let size = self.vpn_count() * PAGE_SIZE;
+        Layout::from_size_align(size, size).unwrap()
     }
 }
 
@@ -207,9 +235,7 @@ where
     pub(super) fn get_or_insert_next_level_table(
         &mut self,
     ) -> Result<PageTableRef<&mut PageTable>, PageTableError> {
-        if self.is_leaf() {
-            return Err(super::AlreadyMappedSnafu.build());
-        }
+        ensure!(!self.is_leaf(), super::AlreadyMappedSnafu);
 
         if !self.is_valid() {
             let next_level_pt = PageTable::try_allocate()?;
@@ -223,13 +249,28 @@ where
         &mut self,
         table: Box<PageTable>,
     ) -> Result<(), PageTableError> {
-        if self.is_valid() {
-            return Err(super::AlreadyMappedSnafu.build());
-        }
+        ensure!(!self.is_valid(), super::AlreadyMappedSnafu);
         let table = Box::leak(table);
         let flags = PageFlags::V;
         let phys_page_num = PhysAddr::from_ptr(table).page_num();
         self.update(phys_page_num, flags);
+        Ok(())
+    }
+
+    pub(super) fn allocate_page(&mut self, flags: MapPageFlags) -> Result<(), PageTableError> {
+        ensure!(
+            !flags.is_empty() && flags & MapPageFlags::URWX == flags,
+            super::InvalidMapFlagsSnafu { flags }
+        );
+        ensure!(!self.is_valid(), super::AlreadyMappedSnafu);
+
+        let layout = self.page_layout();
+        let page = unsafe { alloc::alloc::alloc_zeroed(layout) };
+        ensure!(!page.is_null(), super::AllocPageSnafu { layout });
+
+        let page_flags = PageFlags::V | PageFlags::from(flags);
+        let phys_page_num = PhysAddr::from_ptr(page).page_num();
+        self.update(phys_page_num, page_flags);
         Ok(())
     }
 
@@ -238,27 +279,13 @@ where
         phys_page_num: PhysPageNum,
         flags: MapPageFlags,
     ) -> Result<(), PageTableError> {
-        if flags.is_empty() || flags & MapPageFlags::URWX != flags {
-            return Err(super::InvalidMapFlagsSnafu { flags }.build());
-        }
-        if self.is_valid() {
-            return Err(super::AlreadyMappedSnafu.build());
-        }
+        ensure!(
+            !flags.is_empty() && flags & MapPageFlags::URWX == flags,
+            super::InvalidMapFlagsSnafu { flags }
+        );
+        ensure!(!self.is_valid(), super::AlreadyMappedSnafu);
 
-        let mut page_flags = PageFlags::V;
-        if flags.contains(MapPageFlags::R) {
-            page_flags |= PageFlags::R;
-        }
-        if flags.contains(MapPageFlags::W) {
-            page_flags |= PageFlags::W;
-        }
-        if flags.contains(MapPageFlags::X) {
-            page_flags |= PageFlags::X;
-        }
-        if flags.contains(MapPageFlags::U) {
-            page_flags |= PageFlags::U;
-        }
-
+        let page_flags = PageFlags::V | PageFlags::from(flags);
         self.update(phys_page_num, page_flags);
         Ok(())
     }
