@@ -11,15 +11,26 @@ SHELL := bash
 .PHONY: default
 default: help
 
+CARGO_BUILD_FLAGS ?= \
+	-Zbuild-std=core,compiler_builtins,alloc,panic_abort \
+	-Zbuild-std-features="compiler-builtins-mem"
+
 CARGO_CROSS_TARGET ?= riscv64imac-unknown-none-elf
 CARGO_CROSS_FLAGS ?= \
-	-Zbuild-std=core,compiler_builtins,alloc,panic_abort \
-	-Zbuild-std-features="compiler-builtins-mem" \
 	--target riscv64imac-unknown-none-elf
+
+CARGO_PROFILE_FLAGS ?=
+ifdef RELEASE
+	CARGO_PROFILE_FLAGS += --release
+endif
 
 ## Build the project
 .PHONY: all
-all:
+all: build build-native
+
+## Tidy the project
+.PHONY: tidy
+tidy: clippy clippy-native
 
 ## Print this message
 .PHONY: help
@@ -54,12 +65,27 @@ clean:
 ## Build the project
 .PHONY: build
 build:
-	cargo build -p kernel $(CARGO_CROSS_FLAGS)
+	cargo build $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS)
+
+## Build the project for native architecture
+.PHONY: build-native
+build-native:
+	cargo build $(CARGO_BUILD_FLAGS) $(CARGO_PROFILE_FLAGS)
+
+## Run clippy
+.PHONY: clippy
+clippy:
+	cargo clippy $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS)
+
+## Run clippy for native architecture
+.PHONY: clippy-native
+clippy-native:
+	cargo clippy $(CARGO_BUILD_FLAGS) $(CARGO_PROFILE_FLAGS)
 
 ## Run the project
 .PHONY: run
 run:
-	cargo run -p kernel $(CARGO_CROSS_FLAGS)
+	cargo run -p kernel $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS)
 
 ## Test the project
 .PHONY: test

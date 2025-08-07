@@ -22,7 +22,7 @@ pub fn is_enable() -> bool {
 }
 
 pub fn restore(state: State) {
-    let flags: u8 = if state.0 { 1 } else { 0 };
+    let flags: u8 = u8::from(state.0);
     unsafe {
         asm!(
             "csrs sstatus, {rsi}",
