@@ -1,4 +1,4 @@
-use core::arch::asm;
+use core::{arch::asm, time::Duration};
 
 use riscv::register::scounteren;
 
@@ -32,4 +32,12 @@ pub(super) fn handle_interrupt() {
         asm!("csrr {}, time", out(reg) time);
         asm!("csrw stimecmp, {}", in(reg) time + CLOCKS_PER_TICK);
     }
+}
+
+pub fn now() -> Duration {
+    let time: u64;
+    unsafe {
+        asm!("csrr {}, time", out(reg) time);
+    }
+    Duration::from_nanos(time * NANOS_PER_CLOCK)
 }

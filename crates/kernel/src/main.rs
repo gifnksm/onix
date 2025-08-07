@@ -12,8 +12,12 @@ use spin::Once;
 
 extern crate alloc;
 
-mod boot;
+#[macro_use]
 mod console;
+#[macro_use]
+mod log;
+
+mod boot;
 mod cpu;
 mod interrupt;
 mod memory;
@@ -74,11 +78,7 @@ fn main() -> ! {
         riscv::interrupt::enable();
     }
 
-    if is_primary {
-        println!("Devicetree: {}", DEVICETREE.get().unwrap().root_node());
-    }
-
-    println!("CPU initialized (CPU ID: {})", cpu::current().id());
+    info!("CPU initialized (CPU ID: {})", cpu::current().id());
     loop {
         hint::spin_loop();
     }

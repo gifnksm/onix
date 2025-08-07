@@ -178,8 +178,12 @@ pub fn current_index() -> usize {
     index
 }
 
+pub fn try_current() -> Option<&'static Cpu> {
+    CPUS.get()?.get(current_index())
+}
+
 pub fn current() -> &'static Cpu {
-    &CPUS.get().unwrap()[current_index()]
+    try_current().unwrap()
 }
 
 pub fn get_all() -> &'static [Cpu] {

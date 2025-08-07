@@ -15,10 +15,17 @@ use super::super::BOOT_STACK_TOP;
 #[unsafe(export_name = "entry")]
 unsafe extern "C" fn entry(hartid: usize, dtb_pa: usize) -> ! {
     naked_asm!(
+        // set invalid cpu index to indicate that the register is not set
+        "add tp, zero, -1",
+
+        // call the entry function on boot stack
         "la sp, {boot_stack_top}",
         "call {primary_cpu_entry}",
+
+        // call the main function on the allocated stack
         "mv sp, a0",
         "j {primary_cpu_reentry}",
+
         boot_stack_top = sym BOOT_STACK_TOP,
         primary_cpu_entry = sym super::super::primary_cpu_entry,
         primary_cpu_reentry = sym super::super::primary_cpu_reentry,
@@ -34,10 +41,17 @@ pub fn start_secondary_cpu(hartid: usize) {
 #[unsafe(naked)]
 unsafe extern "C" fn secondary_cpu_entry(hartid: usize, opaque: usize) -> ! {
     naked_asm!(
+        // set invalid cpu index to indicate that the register is not set
+        "add tp, zero, -1",
+
+        // call the entry function on boot stack
         "la sp, {boot_stack_top}",
         "call {secondary_cpu_entry}",
+
+        // call the main function on the allocated stack
         "mv sp, a0",
         "j {secondary_cpu_reentry}",
+
         boot_stack_top = sym BOOT_STACK_TOP,
         secondary_cpu_entry = sym super::super::secondary_cpu_entry,
         secondary_cpu_reentry = sym super::super::secondary_cpu_reentry,
