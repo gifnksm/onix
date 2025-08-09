@@ -8,7 +8,7 @@ use core::{
 
 use spin::Once;
 
-use crate::cpu;
+use crate::cpu::{self, Cpuid};
 
 mod imp;
 pub mod timer;
@@ -17,7 +17,7 @@ pub mod trap;
 static BOOT_CPU_STATE: CpuState = CpuState::new();
 static CPU_STATE: Once<Vec<CpuState>> = Once::new();
 
-pub fn init(boot_cpuid: usize) {
+pub fn init(boot_cpuid: Cpuid) {
     assert!(!is_enabled());
     assert_eq!(BOOT_CPU_STATE.disabled_depth(), 0);
     let cpu = cpu::current();

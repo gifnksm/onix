@@ -85,7 +85,7 @@ struct CpuFormat<'a>(Option<&'a Cpu>);
 impl fmt::Display for CpuFormat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(cpu) => write!(f, "[{:?}]", cpu.id()),
+            Some(cpu) => write!(f, "[{}]", cpu.id().value()),
             None => write!(f, "[?]"),
         }
     }

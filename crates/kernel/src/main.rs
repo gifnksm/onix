@@ -2,15 +2,12 @@
 #![no_std]
 #![no_main]
 
-use core::{
-    hint,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use core::hint;
 
 use devicetree::parsed::Devicetree;
 use spin::Once;
 
-use self::memory::layout::MemoryLayout;
+use self::{cpu::Cpuid, memory::layout::MemoryLayout};
 
 extern crate alloc;
 
@@ -37,11 +34,11 @@ const ONIX_LOGO: &str = r"
  \____/|_| |_|_/_/\_\
 ";
 
-static PRIMARY_CPUID: AtomicUsize = AtomicUsize::new(usize::MAX);
+static PRIMARY_CPUID: Once<Cpuid> = Once::new();
 static DEVICETREE: Once<Devicetree> = Once::new();
 
-fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
-    PRIMARY_CPUID.store(cpuid, Ordering::Release);
+fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
+    PRIMARY_CPUID.call_once(|| cpuid);
 
     println!();
     println!();
@@ -58,15 +55,15 @@ fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     cpu::current().stack_top()
 }
 
-fn secondary_cpu_entry(cpuid: usize) -> *mut u8 {
+fn secondary_cpu_entry(cpuid: Cpuid) -> *mut u8 {
     cpu::set_current_cpuid(cpuid);
     memory::kernel_space::apply();
     cpu::current().stack_top()
 }
 
 fn main() -> ! {
-    let primary_cpuid = PRIMARY_CPUID.load(Ordering::Acquire);
-    let is_primary = primary_cpuid == cpu::current().id();
+    let primary_cpuid = PRIMARY_CPUID.get().unwrap();
+    let is_primary = *primary_cpuid == cpu::current().id();
 
     if is_primary {
         unsafe {

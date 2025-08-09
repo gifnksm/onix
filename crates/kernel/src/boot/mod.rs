@@ -3,7 +3,7 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::memory;
+use crate::{cpu::Cpuid, memory};
 
 mod imp;
 
@@ -28,7 +28,7 @@ unsafe extern "C" fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     unsafe {
         init_bss();
     }
-    crate::primary_cpu_entry(cpuid, dtb_pa)
+    crate::primary_cpu_entry(Cpuid::from_raw(cpuid), dtb_pa)
 }
 
 unsafe extern "C" fn primary_cpu_reentry() -> ! {
@@ -37,7 +37,7 @@ unsafe extern "C" fn primary_cpu_reentry() -> ! {
 
 static CPU_STARTED: AtomicBool = AtomicBool::new(false);
 
-pub unsafe fn start_secondary_cpu(cpuid: usize) {
+pub unsafe fn start_secondary_cpu(cpuid: Cpuid) {
     CPU_STARTED.store(false, Ordering::Release);
     unsafe {
         imp::start_secondary_cpu(cpuid);
@@ -49,7 +49,7 @@ pub unsafe fn start_secondary_cpu(cpuid: usize) {
 }
 
 unsafe extern "C" fn secondary_cpu_entry(cpuid: usize) -> *mut u8 {
-    crate::secondary_cpu_entry(cpuid)
+    crate::secondary_cpu_entry(Cpuid::from_raw(cpuid))
 }
 
 unsafe extern "C" fn secondary_cpu_reentry() -> ! {

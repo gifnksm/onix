@@ -3,7 +3,7 @@ use core::arch::naked_asm;
 use sbi::hart_state_management;
 
 use super::super::BOOT_STACK_TOP;
-use crate::cpu::INVALID_CPU_INDEX;
+use crate::cpu::{Cpuid, INVALID_CPU_INDEX};
 
 // Ensure that INVALID_CPU_INDEX is -1 in signed context
 const _: () = assert!(INVALID_CPU_INDEX.cast_signed() == -1_isize);
@@ -36,14 +36,14 @@ unsafe extern "C" fn entry(hartid: usize, dtb_pa: usize) -> ! {
     );
 }
 
-pub unsafe fn start_secondary_cpu(hartid: usize) {
+pub unsafe fn start_secondary_cpu(cpuid: Cpuid) {
     unsafe {
-        hart_state_management::start(hartid, secondary_cpu_entry as usize, 0).unwrap();
+        hart_state_management::start(cpuid.value(), secondary_cpu_entry as usize, 0).unwrap();
     }
 }
 
 #[unsafe(naked)]
-unsafe extern "C" fn secondary_cpu_entry(hartid: usize, opaque: usize) -> ! {
+unsafe extern "C" fn secondary_cpu_entry(cpuid: usize, opaque: usize) -> ! {
     naked_asm!(
         // set invalid cpu index to indicate that the register is not set
         "add tp, zero, -1",

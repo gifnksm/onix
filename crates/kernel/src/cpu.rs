@@ -20,9 +20,23 @@ use crate::{
 
 pub const INVALID_CPU_INDEX: usize = usize::MAX;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct Cpuid(usize);
+
+impl Cpuid {
+    pub fn value(self) -> usize {
+        self.0
+    }
+
+    pub fn from_raw(value: usize) -> Self {
+        Self(value)
+    }
+}
+
 #[derive(Debug)]
 pub struct Cpu {
-    id: usize,
+    id: Cpuid,
     index: usize,
     stack_top: *mut u8,
     timer_frequency: u64,
@@ -32,7 +46,7 @@ unsafe impl Send for Cpu {}
 unsafe impl Sync for Cpu {}
 
 impl Cpu {
-    pub fn id(&self) -> usize {
+    pub fn id(&self) -> Cpuid {
         self.id
     }
 
@@ -156,7 +170,7 @@ pub fn init(dtree: &Devicetree) -> Result<(), CpuInitError> {
         .enumerate()
     {
         let reg = get_reg(&cpu_node, address_cells, size_cells).context(PropertyInCpuSnafu)?;
-        let id = reg.address;
+        let id = Cpuid(reg.address);
         let stack_range = kernel_space::kernel_stack_ranges(index);
         let timer_frequency = get_u32_or_u64_prop(&cpu_node, "timebase-frequency")
             .or_else(|_| get_u32_or_u64_prop(&cpus_node, "timebase-frequency"))
@@ -188,7 +202,7 @@ pub fn update_kernel_page_table(kpgtbl: &mut KernelPageTable) -> Result<(), Page
     Ok(())
 }
 
-pub fn set_current_cpuid(cpuid: usize) {
+pub fn set_current_cpuid(cpuid: Cpuid) {
     assert!(
         try_current_index().is_none(),
         "current CPU ID is already set"
