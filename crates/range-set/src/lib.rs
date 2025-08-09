@@ -77,8 +77,10 @@ impl<const CAP: usize> RangeSet<CAP> {
     /// assert!(set.is_empty());
     /// ```
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        Self {
+            ranges: ArrayVec::new_const(),
+        }
     }
 
     /// Returns an iterator over the ranges in the set.

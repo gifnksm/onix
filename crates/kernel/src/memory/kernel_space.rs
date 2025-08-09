@@ -8,8 +8,7 @@ use spin::Once;
 
 use super::{
     PAGE_SIZE,
-    allocator::{self, HeapLayout},
-    layout,
+    layout::{self, MemoryLayout},
     page_table::sv39::{
         MapPageFlags, PageTableError, PageTableRoot,
         address::{PhysAddr, VirtAddr},
@@ -62,14 +61,14 @@ impl KernelPageTable {
 
 static KERNEL_PAGE_TABLE: Once<KernelPageTable> = Once::new();
 
-pub fn init(heap_layout: &HeapLayout) -> Result<(), PageTableError> {
+pub fn init(memory_layout: &MemoryLayout) -> Result<(), PageTableError> {
     let mut kpgtbl = KernelPageTable::new()?;
 
     kpgtbl.identity_map_range(layout::kernel_rx_range(), MapPageFlags::RX)?;
     kpgtbl.identity_map_range(layout::kernel_ro_range(), MapPageFlags::R)?;
     kpgtbl.identity_map_range(layout::kernel_rw_range(), MapPageFlags::RW)?;
 
-    allocator::update_kernel_page_table(&mut kpgtbl, heap_layout)?;
+    layout::update_kernel_page_table(&mut kpgtbl, memory_layout)?;
     cpu::update_kernel_page_table(&mut kpgtbl)?;
 
     KERNEL_PAGE_TABLE.call_once(|| kpgtbl);

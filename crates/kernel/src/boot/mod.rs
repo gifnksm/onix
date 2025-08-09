@@ -37,9 +37,11 @@ unsafe extern "C" fn primary_cpu_reentry() -> ! {
 
 static CPU_STARTED: AtomicBool = AtomicBool::new(false);
 
-pub fn start_secondary_cpu(cpuid: usize) {
+pub unsafe fn start_secondary_cpu(cpuid: usize) {
     CPU_STARTED.store(false, Ordering::Release);
-    imp::start_secondary_cpu(cpuid);
+    unsafe {
+        imp::start_secondary_cpu(cpuid);
+    }
     while !CPU_STARTED.load(Ordering::Acquire) {
         // Wait for the secondary CPU to start
         hint::spin_loop();

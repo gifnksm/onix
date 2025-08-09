@@ -36,7 +36,7 @@ unsafe extern "C" fn entry(hartid: usize, dtb_pa: usize) -> ! {
     );
 }
 
-pub fn start_secondary_cpu(hartid: usize) {
+pub unsafe fn start_secondary_cpu(hartid: usize) {
     unsafe {
         hart_state_management::start(hartid, secondary_cpu_entry as usize, 0).unwrap();
     }

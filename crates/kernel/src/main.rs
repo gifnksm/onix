@@ -10,6 +10,8 @@ use core::{
 use devicetree::parsed::Devicetree;
 use spin::Once;
 
+use self::memory::layout::MemoryLayout;
+
 extern crate alloc;
 
 #[macro_use]
@@ -46,13 +48,11 @@ fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     println!("Onix v{ONIX_VERSION}");
     println!("{ONIX_LOGO}");
 
-    let (dtree, heap_layout) = unsafe { memory::allocator::init(dtb_pa).unwrap() };
-    DEVICETREE.call_once(|| dtree);
+    let memory_layout = init_memory(dtb_pa);
     let dtree = DEVICETREE.get().unwrap();
-
     cpu::init(dtree).unwrap();
     cpu::set_current_cpuid(cpuid);
-    memory::kernel_space::init(&heap_layout).unwrap();
+    memory::kernel_space::init(&memory_layout).unwrap();
     memory::kernel_space::apply();
     cpu::current().stack_top()
 }
@@ -68,7 +68,9 @@ fn main() -> ! {
     let is_primary = primary_cpuid == cpu::current().id();
 
     if is_primary {
-        start_secondary_cpus();
+        unsafe {
+            start_secondary_cpus();
+        }
     }
 
     interrupt::trap::apply();
@@ -85,11 +87,38 @@ fn main() -> ! {
     }
 }
 
-fn start_secondary_cpus() {
+fn init_memory(dtb_pa: usize) -> MemoryLayout {
+    let dtb = unsafe { devicetree::flattened::Devicetree::from_addr(dtb_pa) }.unwrap();
+    let memory_layout = MemoryLayout::new(&dtb).unwrap();
+
+    // initialize heap
+    unsafe {
+        memory::allocator::add_heap_ranges(memory_layout.initial_heap_ranges());
+    }
+
+    // parse devicetree blob
+    DEVICETREE.call_once(|| dtb.parse().unwrap());
+
+    // reuse devicetree blob range as heap
+    unsafe {
+        memory::allocator::add_heap_ranges([memory_layout.dtb_range()]);
+    }
+
+    memory_layout
+}
+
+unsafe fn start_secondary_cpus() {
     for cpu in cpu::get_all() {
         if cpu.is_current() {
             continue;
         }
-        boot::start_secondary_cpu(cpu.id());
+        unsafe {
+            boot::start_secondary_cpu(cpu.id());
+        }
+    }
+
+    // reuse boot stack as heap
+    unsafe {
+        memory::allocator::add_heap_ranges([memory::layout::kernel_boot_stack_range()]);
     }
 }

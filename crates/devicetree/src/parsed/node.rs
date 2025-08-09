@@ -3,7 +3,7 @@ use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
 };
-use core::{fmt, ops::Range, slice};
+use core::{fmt, iter::FusedIterator, ops::Range, slice};
 
 use crate::common::property::Property;
 
@@ -132,7 +132,27 @@ impl<'node> Iterator for Properties<'node> {
         let name = str::from_utf8(&self.node.string_block[prop.name_range.clone()]).unwrap();
         Some(Property::new(name, &prop.value))
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
+
+impl DoubleEndedIterator for Properties<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let prop = self.iter.next_back()?;
+        let name = str::from_utf8(&self.node.string_block[prop.name_range.clone()]).unwrap();
+        Some(Property::new(name, &prop.value))
+    }
+}
+
+impl ExactSizeIterator for Properties<'_> {
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+impl FusedIterator for Properties<'_> {}
 
 #[derive(Clone)]
 pub struct Children<'node> {
