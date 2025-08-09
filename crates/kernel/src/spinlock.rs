@@ -38,6 +38,7 @@ impl<T> SpinMutex<T> {
         }
     }
 
+    #[track_caller]
     pub fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
         let interrupt_guard = interrupt::disable();
 
@@ -55,6 +56,7 @@ impl<T> SpinMutex<T> {
         })
     }
 
+    #[track_caller]
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
         let interrupt_guard = interrupt::disable();
 

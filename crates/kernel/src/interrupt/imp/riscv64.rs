@@ -2,18 +2,21 @@ use core::arch::asm;
 
 use riscv::register::sstatus;
 
+const SSTATUS_SIE: usize = 0b10;
+
 #[derive(Debug, Clone, Copy)]
 pub struct State(bool);
 
 pub fn read_and_disable() -> State {
-    let flags: u8;
+    let sstatus: usize;
     unsafe {
         asm!(
-            "csrrci {rd}, sstatus, 0b10",
-            rd = out(reg) flags,
+            "csrrci {rd}, sstatus, {sstatus_sie}",
+            rd = out(reg) sstatus,
+            sstatus_sie = const SSTATUS_SIE,
             options(preserves_flags, nostack)
         );
-        State(flags != 0)
+        State((sstatus & SSTATUS_SIE) != 0)
     }
 }
 
@@ -22,12 +25,13 @@ pub fn is_enable() -> bool {
 }
 
 pub fn restore(state: State) {
-    let flags: u8 = u8::from(state.0);
-    unsafe {
-        asm!(
-            "csrs sstatus, {rsi}",
-            rsi = in(reg) flags,
-            options(preserves_flags, nostack)
-        );
+    if state.0 {
+        unsafe {
+            sstatus::set_sie();
+        }
+    } else {
+        unsafe {
+            sstatus::clear_sie();
+        }
     }
 }
