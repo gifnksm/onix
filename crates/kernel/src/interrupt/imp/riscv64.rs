@@ -5,7 +5,9 @@ use riscv::register::sstatus;
 const SSTATUS_SIE: usize = 0b10;
 
 #[derive(Debug, Clone, Copy)]
-pub struct State(bool);
+pub struct State {
+    enabled: bool,
+}
 
 pub fn read_and_disable() -> State {
     let sstatus: usize;
@@ -16,7 +18,9 @@ pub fn read_and_disable() -> State {
             sstatus_sie = const SSTATUS_SIE,
             options(preserves_flags, nostack)
         );
-        State((sstatus & SSTATUS_SIE) != 0)
+    }
+    State {
+        enabled: (sstatus & SSTATUS_SIE) != 0,
     }
 }
 
@@ -25,13 +29,10 @@ pub fn is_enabled() -> bool {
 }
 
 pub fn restore(state: State) {
-    if state.0 {
+    assert!(!is_enabled());
+    if state.enabled {
         unsafe {
             sstatus::set_sie();
-        }
-    } else {
-        unsafe {
-            sstatus::clear_sie();
         }
     }
 }
