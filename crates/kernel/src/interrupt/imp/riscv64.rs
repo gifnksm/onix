@@ -9,6 +9,12 @@ pub struct State {
     enabled: bool,
 }
 
+impl State {
+    pub const fn new() -> Self {
+        Self { enabled: false }
+    }
+}
+
 pub fn read_and_disable() -> State {
     let sstatus: usize;
     unsafe {

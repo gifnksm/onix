@@ -52,6 +52,7 @@ fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     let dtree = DEVICETREE.get().unwrap();
     cpu::init(dtree).unwrap();
     cpu::set_current_cpuid(cpuid);
+    interrupt::init(cpuid);
     memory::kernel_space::init(&memory_layout).unwrap();
     memory::kernel_space::apply();
     cpu::current().stack_top()

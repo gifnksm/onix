@@ -1,5 +1,11 @@
 #[derive(Debug, Clone, Copy)]
-pub struct State;
+pub struct State();
+
+impl State {
+    pub const fn new() -> Self {
+        Self()
+    }
+}
 
 pub fn read_and_disable() -> State {
     unimplemented!("unsupported architecture");

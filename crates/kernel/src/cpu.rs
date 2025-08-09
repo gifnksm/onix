@@ -45,7 +45,7 @@ impl Cpu {
     }
 
     pub fn is_current(&self) -> bool {
-        current_index() == Some(self.index)
+        try_current_index() == Some(self.index)
     }
 }
 
@@ -189,7 +189,10 @@ pub fn update_kernel_page_table(kpgtbl: &mut KernelPageTable) -> Result<(), Page
 }
 
 pub fn set_current_cpuid(cpuid: usize) {
-    assert!(current_index().is_none(), "current CPU ID is already set");
+    assert!(
+        try_current_index().is_none(),
+        "current CPU ID is already set"
+    );
 
     let cpus = CPUS.get().unwrap();
     let cpu = cpus.iter().find(|cpu| cpu.id == cpuid).unwrap();
@@ -198,7 +201,7 @@ pub fn set_current_cpuid(cpuid: usize) {
     }
 }
 
-fn current_index() -> Option<usize> {
+pub fn try_current_index() -> Option<usize> {
     assert!(!interrupt::is_enabled());
 
     let index: usize;
@@ -208,12 +211,20 @@ fn current_index() -> Option<usize> {
     (index != INVALID_CPU_INDEX).then_some(index)
 }
 
+pub fn current_index() -> usize {
+    try_current_index().unwrap()
+}
+
 pub fn try_current() -> Option<&'static Cpu> {
-    CPUS.get()?.get(current_index()?)
+    CPUS.get()?.get(try_current_index()?)
 }
 
 pub fn current() -> &'static Cpu {
     try_current().unwrap()
+}
+
+pub fn len() -> usize {
+    CPUS.get().unwrap().len()
 }
 
 pub fn get_all() -> &'static [Cpu] {
