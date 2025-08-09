@@ -15,11 +15,14 @@ use crate::memory::{
     page_table::sv39::{MapPageFlags, PageTableError},
 };
 
+pub const INVALID_CPU_INDEX: usize = usize::MAX;
+
 #[derive(Debug)]
 pub struct Cpu {
     id: usize,
     index: usize,
     stack_top: *mut u8,
+    timer_frequency: u64,
 }
 
 unsafe impl Send for Cpu {}
@@ -34,8 +37,12 @@ impl Cpu {
         self.stack_top
     }
 
+    pub fn timer_frequency(&self) -> u64 {
+        self.timer_frequency
+    }
+
     pub fn is_current(&self) -> bool {
-        self.index == current_index()
+        current_index() == Some(self.index)
     }
 }
 
@@ -100,6 +107,14 @@ fn get_u32_prop(node: &Node, name: &'static str) -> Result<u32, PropertyError> {
         .context(ParseSnafu { name })
 }
 
+fn get_u32_or_u64_prop(node: &Node, name: &'static str) -> Result<u64, PropertyError> {
+    node.properties()
+        .find(|p| p.name() == name)
+        .context(MissingSnafu { name })?
+        .value_as_u32_or_u64()
+        .context(ParseSnafu { name })
+}
+
 fn get_reg(node: &Node, address_cells: usize, size_cells: usize) -> Result<Reg, PropertyError> {
     let name = "reg";
     let mut regs = node
@@ -140,11 +155,19 @@ pub fn init(dtree: &Devicetree) -> Result<(), CpuInitError> {
         let reg = get_reg(&cpu_node, address_cells, size_cells).context(PropertyInCpuSnafu)?;
         let id = reg.address;
         let stack_range = kernel_space::kernel_stack_ranges(index);
+        let timer_frequency = get_u32_or_u64_prop(&cpu_node, "timebase-frequency")
+            .or_else(|_| get_u32_or_u64_prop(&cpus_node, "timebase-frequency"))
+            .context(PropertyInCpusSnafu)?;
+        assert!(
+            timer_frequency > 0,
+            "timer frequency must be greater than 0"
+        );
 
         cpus.push(Cpu {
             id,
             index,
             stack_top: ptr::with_exposed_provenance_mut(stack_range.end),
+            timer_frequency,
         });
     }
 
@@ -163,6 +186,8 @@ pub fn update_kernel_page_table(kpgtbl: &mut KernelPageTable) -> Result<(), Page
 }
 
 pub fn set_current_cpuid(cpuid: usize) {
+    assert!(current_index().is_none(), "current CPU ID is already set");
+
     let cpus = CPUS.get().unwrap();
     let cpu = cpus.iter().find(|cpu| cpu.id == cpuid).unwrap();
     unsafe {
@@ -170,16 +195,16 @@ pub fn set_current_cpuid(cpuid: usize) {
     }
 }
 
-pub fn current_index() -> usize {
+fn current_index() -> Option<usize> {
     let index: usize;
     unsafe {
         asm!("mv {}, tp", out(reg) index);
     }
-    index
+    (index != INVALID_CPU_INDEX).then_some(index)
 }
 
 pub fn try_current() -> Option<&'static Cpu> {
-    CPUS.get()?.get(current_index())
+    CPUS.get()?.get(current_index()?)
 }
 
 pub fn current() -> &'static Cpu {

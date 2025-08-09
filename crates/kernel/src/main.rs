@@ -74,11 +74,12 @@ fn main() -> ! {
     interrupt::trap::apply();
     interrupt::timer::start();
 
+    info!("CPU initialized");
+
     unsafe {
         riscv::interrupt::enable();
     }
 
-    info!("CPU initialized");
     loop {
         hint::spin_loop();
     }

@@ -48,7 +48,7 @@ macro_rules! error {
 
 #[track_caller]
 pub fn log(level: LogLevel, message: fmt::Arguments) {
-    let now = TimeFormat(timer::now());
+    let now = TimeFormat(timer::try_now());
     let level = LevelFormat(level);
     let cpu = CpuFormat(cpu::try_current());
     let location = LocationFormat(Location::caller());
@@ -66,11 +66,14 @@ pub enum LogLevel {
 }
 
 #[derive(Debug)]
-struct TimeFormat(Duration);
+struct TimeFormat(Option<Duration>);
 
 impl fmt::Display for TimeFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:}.{:09}", self.0.as_secs(), self.0.subsec_nanos())
+        match self.0 {
+            Some(dur) => write!(f, "{}.{:09}", dur.as_secs(), dur.subsec_nanos()),
+            None => write!(f, "{}.{:09}", 0, 0),
+        }
     }
 }
 

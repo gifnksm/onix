@@ -3,6 +3,10 @@ use core::arch::naked_asm;
 use sbi::hart_state_management;
 
 use super::super::BOOT_STACK_TOP;
+use crate::cpu::INVALID_CPU_INDEX;
+
+// Ensure that INVALID_CPU_INDEX is -1 in signed context
+const _: () = assert!(INVALID_CPU_INDEX.cast_signed() == -1_isize);
 
 // OpenSBI passes the information via the following registers of RISC-V CPU:
 //

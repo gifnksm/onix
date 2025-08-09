@@ -38,6 +38,48 @@ use platform_cast::CastFrom as _;
 use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 
+#[derive(Debug)]
+pub enum ExpectedValues<T>
+where
+    T: 'static,
+{
+    Single(T),
+    Multiple(&'static [T]),
+}
+
+impl<T> From<T> for ExpectedValues<T> {
+    fn from(value: T) -> Self {
+        Self::Single(value)
+    }
+}
+
+impl<T> From<&'static [T]> for ExpectedValues<T> {
+    fn from(value: &'static [T]) -> Self {
+        Self::Multiple(value)
+    }
+}
+
+impl<T> fmt::Display for ExpectedValues<T>
+where
+    T: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Single(value) => write!(f, "{value}"),
+            Self::Multiple(values) => {
+                let mut iter = values.iter();
+                if let Some(first) = iter.next() {
+                    write!(f, "{first}")?;
+                }
+                for value in iter {
+                    write!(f, ", {value}")?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 #[derive(Debug, Snafu)]
 pub enum ParsePropertyValueError {
     #[snafu(display("missing nul in <string>"))]
@@ -54,7 +96,7 @@ pub enum ParsePropertyValueError {
     },
     #[snafu(display("invalid value length. expected: {expected}, actual: {actual}"))]
     InvalidValueLength {
-        expected: usize,
+        expected: ExpectedValues<usize>,
         actual: usize,
         #[snafu(implicit)]
         location: Location,
@@ -186,6 +228,20 @@ impl<'a> Property<'a> {
     /// * `Err(ParsePropertyValueError)` - If the value is not exactly 8 bytes
     pub fn value_as_u64(&self) -> Result<u64, ParsePropertyValueError> {
         Ok(u64::from_be_bytes(self.value_as_array()?))
+    }
+
+    pub fn value_as_u32_or_u64(&self) -> Result<u64, ParsePropertyValueError> {
+        #[expect(clippy::map_err_ignore)]
+        self.value_as_u32()
+            .map(u64::from)
+            .or_else(|_| self.value_as_u64())
+            .map_err(|_| {
+                InvalidValueLengthSnafu {
+                    expected: [4, 8].as_slice(),
+                    actual: self.value.len(),
+                }
+                .build()
+            })
     }
 
     /// Parses the property value as a phandle (reference to another node).

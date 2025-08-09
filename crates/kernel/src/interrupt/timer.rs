@@ -2,11 +2,10 @@ use core::{arch::asm, time::Duration};
 
 use riscv::register::scounteren;
 
-const NANOS_PER_CLOCK: u64 = 100;
+use super::super::cpu;
+
 const NANOS_PER_SEC: u64 = 1_000_000_000;
 const TICKS_PER_SEC: u64 = 10;
-const NANOS_PER_TICK: u64 = NANOS_PER_SEC / TICKS_PER_SEC;
-const CLOCKS_PER_TICK: u64 = NANOS_PER_TICK / NANOS_PER_CLOCK;
 
 pub fn start() {
     // allow user to use time.
@@ -23,21 +22,30 @@ pub fn start() {
 }
 
 pub(super) fn handle_interrupt() {
+    let timer_frequency = cpu::current().timer_frequency();
+    let timer_increment = timer_frequency / TICKS_PER_SEC;
+
     let time: u64;
 
-    // ask for the next timer interrupt. this also clears
-    // the interrupt request. 1_000_000 is about a tenth
-    // of a second.
     unsafe {
         asm!("csrr {}, time", out(reg) time);
-        asm!("csrw stimecmp, {}", in(reg) time + CLOCKS_PER_TICK);
+        asm!("csrw stimecmp, {}", in(reg) time + timer_increment);
     }
 }
 
-pub fn now() -> Duration {
+pub fn try_now() -> Option<Duration> {
+    let timer_frequency = cpu::try_current()?.timer_frequency();
+
     let time: u64;
     unsafe {
         asm!("csrr {}, time", out(reg) time);
     }
-    Duration::from_nanos(time * NANOS_PER_CLOCK)
+
+    let sec = time / timer_frequency;
+    let subsec = time % timer_frequency;
+    let subsec_nanos = (subsec * NANOS_PER_SEC / timer_frequency)
+        .try_into()
+        .unwrap();
+
+    Some(Duration::new(sec, subsec_nanos))
 }
