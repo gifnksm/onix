@@ -78,7 +78,7 @@ fn main() -> ! {
         riscv::interrupt::enable();
     }
 
-    info!("CPU initialized (CPU ID: {})", cpu::current().id());
+    info!("CPU initialized");
     loop {
         hint::spin_loop();
     }

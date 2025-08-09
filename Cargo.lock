@@ -7,6 +7,10 @@ name = "allocator"
 version = "0.1.0"
 
 [[package]]
+name = "ansi-term"
+version = "0.1.0"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -147,6 +151,7 @@ name = "kernel"
 version = "0.1.0"
 dependencies = [
  "allocator",
+ "ansi-term",
  "arrayvec",
  "bitflags",
  "cfg-if",

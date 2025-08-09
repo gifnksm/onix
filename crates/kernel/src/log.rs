@@ -1,4 +1,6 @@
-use core::fmt;
+use core::{fmt, panic::Location, time::Duration};
+
+use ansi_term::{Color, WithFg};
 
 use crate::{
     cpu::{self, Cpu},
@@ -46,14 +48,14 @@ macro_rules! error {
 
 #[track_caller]
 pub fn log(level: LogLevel, message: fmt::Arguments) {
-    let now = timer::now();
-    if let Some(cpuid) = cpu::try_current().map(Cpu::id) {
-        println!("{now:?} [{cpuid}] {} {}", LevelFormat(level), message);
-    } else {
-        println!("{now:?} [?] {} {}", LevelFormat(level), message);
-    }
+    let now = TimeFormat(timer::now());
+    let level = LevelFormat(level);
+    let cpu = CpuFormat(cpu::try_current());
+    let location = LocationFormat(Location::caller());
+    println!("{now} {cpu} {level} {message} {location}");
 }
 
+#[expect(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogLevel {
     Trace,
@@ -63,16 +65,38 @@ pub enum LogLevel {
     Error,
 }
 
+#[derive(Debug)]
+struct TimeFormat(Duration);
+
+impl fmt::Display for TimeFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:}.{:09}", self.0.as_secs(), self.0.subsec_nanos())
+    }
+}
+
+#[derive(Debug)]
+struct CpuFormat<'a>(Option<&'a Cpu>);
+
+impl fmt::Display for CpuFormat<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(cpu) => write!(f, "[{:?}]", cpu.id()),
+            None => write!(f, "[?]"),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct LevelFormat(LogLevel);
 
 impl fmt::Display for LevelFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let color = match self.0 {
-            LogLevel::Trace => 35,
-            LogLevel::Debug => 34,
-            LogLevel::Info => 32,
-            LogLevel::Warn => 33,
-            LogLevel::Error => 31,
+            LogLevel::Trace => Color::Purple,
+            LogLevel::Debug => Color::Blue,
+            LogLevel::Info => Color::Green,
+            LogLevel::Warn => Color::Yellow,
+            LogLevel::Error => Color::Red,
         };
         let msg = match self.0 {
             LogLevel::Trace => "TRACE",
@@ -81,6 +105,17 @@ impl fmt::Display for LevelFormat {
             LogLevel::Warn => " WARN",
             LogLevel::Error => "ERROR",
         };
-        write!(f, "\x1B[{color};1m{msg}\x1B[0m")
+        write!(f, "{}", WithFg::new(color, msg))
+    }
+}
+
+#[derive(Debug)]
+struct LocationFormat<'a>(&'a Location<'a>);
+
+impl fmt::Display for LocationFormat<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let color = Color::DarkGray;
+        let location = format_args!("({})", self.0);
+        write!(f, "{}", WithFg::new(color, location))
     }
 }

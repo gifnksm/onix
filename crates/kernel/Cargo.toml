@@ -17,6 +17,7 @@ bench = false
 
 [dependencies]
 allocator.workspace = true
+ansi-term.workspace = true
 arrayvec.workspace = true
 bitflags.workspace = true
 cfg-if.workspace = true

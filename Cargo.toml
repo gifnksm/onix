@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/allocator", "crates/devicetree", "crates/endian","crates/kernel", "crates/sbi", "crates/sbi-sys", "crates/snafu-utils"]
+members = [ "crates/allocator", "crates/ansi-term", "crates/devicetree", "crates/endian","crates/kernel", "crates/sbi", "crates/sbi-sys", "crates/snafu-utils"]
 resolver = "3"
 
 [workspace.package]
@@ -15,6 +15,7 @@ publish = false
 
 [workspace.dependencies]
 allocator = { path = "crates/allocator" }
+ansi-term = { path = "crates/ansi-term" }
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.9.1"
 cfg-if = "1.0.1"
