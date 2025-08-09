@@ -66,8 +66,7 @@ impl MemoryLayout {
     pub fn new(dtb: &Devicetree) -> Result<Self, MemoryLayoutError> {
         let mut available_ranges = RangeSet::<128>::new();
         fdt::insert_memory_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
-        fdt::remove_reserved_ranges(dtb, &mut available_ranges);
-        available_ranges.remove(opensbi_reserved_range());
+        fdt::remove_reserved_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
         available_ranges.remove(kernel_reserved_range());
 
         let dtb_range = fdt::dtb_range(dtb);
@@ -87,10 +86,6 @@ impl MemoryLayout {
     pub fn dtb_range(&self) -> Range<usize> {
         self.dtb_range.clone()
     }
-}
-
-fn opensbi_reserved_range() -> Range<usize> {
-    0x8000_0000..0x8020_0000
 }
 
 fn kernel_reserved_range() -> Range<usize> {

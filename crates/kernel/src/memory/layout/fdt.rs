@@ -34,10 +34,28 @@ pub fn insert_memory_ranges(
     Ok(())
 }
 
-pub fn remove_reserved_ranges(dtb: &Devicetree, ranges: &mut RangeSet<128>) {
+pub fn remove_reserved_ranges(
+    dtb: &Devicetree,
+    ranges: &mut RangeSet<128>,
+) -> Result<(), DevicetreeError> {
     for rsv in dtb.mem_rsvmap() {
         ranges.remove(rsv.range());
     }
+
+    let root = dtb.root_node().context(ParseStructSnafu)?;
+    if let Some(parent) = find_child(&root, "reserved-memory")? {
+        let address_cells = find_prop_address_cells(&parent)?;
+        let size_cells = find_prop_size_cells(&parent)?;
+        for child in parent.children() {
+            let child = child.context(ParseStructSnafu)?;
+            let reg_iter = find_prop_reg(&child, address_cells, size_cells)?;
+            for reg in reg_iter {
+                ranges.remove(reg.range());
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn dtb_range(dtb: &Devicetree<'_>) -> Range<usize> {
@@ -70,6 +88,19 @@ pub enum DevicetreeError {
         #[snafu(source)]
         source: ParsePropertyValueError,
     },
+}
+
+fn find_child<'fdt, 'tree>(
+    node: &'tree Node<'fdt, 'tree>,
+    name: &str,
+) -> Result<Option<Node<'fdt, 'tree>>, DevicetreeError> {
+    for child in node.children() {
+        let child = child.context(ParseStructSnafu)?;
+        if child.name() == name {
+            return Ok(Some(child));
+        }
+    }
+    Ok(None)
 }
 
 fn find_prop<'fdt>(
