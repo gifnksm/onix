@@ -5,6 +5,8 @@ use core::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use ansi_term::{Color, WithFg};
+
 use self::{line_buffered::LineBufferedConsole, sbi_debug::SbiDebugConsole};
 use crate::spinlock::SpinMutex;
 
@@ -49,13 +51,14 @@ macro_rules! println {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    let mut console = CONSOLE.try_lock();
-    let mut dummy_console = LineBufferedConsole::new(SbiDebugConsole {});
-    let console = console.as_deref_mut().unwrap_or(&mut dummy_console);
-
-    let _ = writeln!(console, "\n\n!!! KERNEL PANIC !!!\n\n{info}\n\n");
-
     PANICKED.store(true, Ordering::Release);
-
-    loop {}
+    let mut console = CONSOLE.lock();
+    let _ = writeln!(
+        console,
+        "\n\n{}\n\n{info}\n\n",
+        WithFg::new(Color::Red, "!!! KERNEL PANIC !!!")
+    );
+    loop {
+        hint::spin_loop();
+    }
 }

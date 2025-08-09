@@ -10,9 +10,12 @@ use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 use spin::Once;
 
-use crate::memory::{
-    kernel_space::{self, KernelPageTable},
-    page_table::sv39::{MapPageFlags, PageTableError},
+use crate::{
+    interrupt,
+    memory::{
+        kernel_space::{self, KernelPageTable},
+        page_table::sv39::{MapPageFlags, PageTableError},
+    },
 };
 
 pub const INVALID_CPU_INDEX: usize = usize::MAX;
@@ -196,6 +199,8 @@ pub fn set_current_cpuid(cpuid: usize) {
 }
 
 fn current_index() -> Option<usize> {
+    assert!(!interrupt::is_enabled());
+
     let index: usize;
     unsafe {
         asm!("mv {}, tp", out(reg) index);

@@ -20,7 +20,7 @@ pub fn read_and_disable() -> State {
     }
 }
 
-pub fn is_enable() -> bool {
+pub fn is_enabled() -> bool {
     sstatus::read().sie()
 }
 

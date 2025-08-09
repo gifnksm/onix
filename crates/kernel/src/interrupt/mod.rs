@@ -11,8 +11,8 @@ pub fn disable() -> Guard {
     }
 }
 
-pub fn is_enable() -> bool {
-    imp::is_enable()
+pub fn is_enabled() -> bool {
+    imp::is_enabled()
 }
 
 #[derive(Debug)]

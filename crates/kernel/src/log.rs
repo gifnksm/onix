@@ -4,7 +4,7 @@ use ansi_term::{Color, WithFg};
 
 use crate::{
     cpu::{self, Cpu},
-    interrupt::timer,
+    interrupt::{self, timer},
 };
 
 macro_rules! log {
@@ -48,6 +48,8 @@ macro_rules! error {
 
 #[track_caller]
 pub fn log(level: LogLevel, message: fmt::Arguments) {
+    let _interrupt_guard = interrupt::disable();
+
     let now = TimeFormat(timer::try_now());
     let level = LevelFormat(level);
     let cpu = CpuFormat(cpu::try_current());

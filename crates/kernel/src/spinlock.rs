@@ -10,7 +10,7 @@ use crate::interrupt;
 pub struct SpinMutex<T> {
     locked: AtomicBool,
     data: UnsafeCell<T>,
-    owner: UnsafeCell<&'static Location<'static>>,
+    locked_at: UnsafeCell<&'static Location<'static>>,
 }
 
 impl<T> Default for SpinMutex<T>
@@ -22,7 +22,7 @@ where
         Self {
             locked: AtomicBool::new(false),
             data: UnsafeCell::new(T::default()),
-            owner: UnsafeCell::new(Location::caller()),
+            locked_at: UnsafeCell::new(Location::caller()),
         }
     }
 }
@@ -34,26 +34,8 @@ impl<T> SpinMutex<T> {
         Self {
             locked: AtomicBool::new(false),
             data: UnsafeCell::new(data),
-            owner: UnsafeCell::new(Location::caller()),
+            locked_at: UnsafeCell::new(Location::caller()),
         }
-    }
-
-    #[track_caller]
-    pub fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
-        let interrupt_guard = interrupt::disable();
-
-        if self.locked.swap(true, Ordering::Acquire) {
-            return None;
-        }
-
-        unsafe {
-            *self.owner.get() = Location::caller();
-        }
-
-        Some(SpinMutexGuard {
-            mutex: self,
-            _interrupt_guard: interrupt_guard,
-        })
     }
 
     #[track_caller]
@@ -63,7 +45,7 @@ impl<T> SpinMutex<T> {
         while self.locked.swap(true, Ordering::Acquire) {}
 
         unsafe {
-            *self.owner.get() = Location::caller();
+            *self.locked_at.get() = Location::caller();
         }
 
         SpinMutexGuard {

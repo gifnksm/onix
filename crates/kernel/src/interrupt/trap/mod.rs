@@ -20,7 +20,7 @@ pub(super) extern "C" fn trap_kernel() {
     let scause: Trap<Interrupt, Exception> = scause::read().cause().try_into().unwrap();
 
     assert_eq!(sstatus.spp(), SPP::Supervisor, "from supervisor mode");
-    assert!(!super::is_enable());
+    assert!(!super::is_enabled());
 
     match scause {
         Trap::Exception(e) => {
