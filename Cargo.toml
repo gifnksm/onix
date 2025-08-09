@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/allocator", "crates/ansi-term", "crates/devicetree", "crates/endian","crates/kernel", "crates/sbi", "crates/sbi-sys", "crates/snafu-utils"]
+members = [ "crates/*" ]
 resolver = "3"
 
 [workspace.package]
@@ -24,6 +24,7 @@ dataview = "1.0.1"
 devicetree = { path = "crates/devicetree" }
 endian = { path = "crates/endian" }
 platform-cast = "0.1.0"
+range-set = { path = "crates/range-set" }
 riscv = { version = "0.14.0", features = ["s-mode"] }
 sbi = { path = "crates/sbi" }
 sbi-sys = { path = "crates/sbi-sys" }

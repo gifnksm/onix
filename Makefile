@@ -91,3 +91,4 @@ run:
 .PHONY: test
 test:
 	cargo nextest run
+	cargo test --doc

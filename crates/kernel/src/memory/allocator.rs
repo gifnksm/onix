@@ -5,8 +5,8 @@ use core::{
 };
 
 use allocator::fixed_size_block::FixedSizeBlockAllocator;
-use arrayvec::ArrayVec;
 use devicetree::flattened::layout::ReserveEntry;
+use range_set::RangeSet;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
 
@@ -114,72 +114,45 @@ pub fn update_kernel_page_table(
 }
 
 pub struct HeapLayout {
-    memory_ranges: ArrayVec<Range<usize>, 128>,
-    reserved_ranges: ArrayVec<Range<usize>, 128>,
+    available_ranges: RangeSet<128>,
     dtb_range: Range<usize>,
 }
 
 impl HeapLayout {
     fn new(dtb: &devicetree::flattened::Devicetree) -> Result<Self, AllocatorInitError> {
-        let mut memory_ranges = ArrayVec::<Range<usize>, 128>::new();
+        let mut memory_ranges = RangeSet::<128>::new();
         for range in layout::memory_addr_ranges(dtb).context(MemoryAddrRangesSnafu)? {
             let range = range.context(MemoryAddrRangesSnafu)?;
-            memory_ranges.push(range);
+            memory_ranges.insert(range);
         }
+
         let mut reserved_ranges = dtb
             .mem_rsvmap()
             .iter()
             .map(ReserveEntry::range)
-            .collect::<ArrayVec<_, _>>();
-        reserved_ranges.push(layout::opensbi_reserved_range());
-        reserved_ranges.push(layout::kernel_reserved_range());
+            .collect::<RangeSet<128>>();
+        reserved_ranges.insert(layout::opensbi_reserved_range());
+        reserved_ranges.insert(layout::kernel_reserved_range());
+
+        let available_ranges = memory_ranges.difference(&reserved_ranges);
 
         let dtb_range = layout::dtb_range(dtb);
         Ok(Self {
-            memory_ranges,
-            reserved_ranges,
+            available_ranges,
             dtb_range,
         })
     }
 
-    fn compute_heap_range(
-        &self,
-        exclude_boot_stack: bool,
-        exclude_dtb: bool,
-    ) -> ArrayVec<Range<usize>, 128> {
-        let mut heap_ranges = self.memory_ranges.clone();
-
-        for reserved in &self.reserved_ranges {
-            exclude_reserved_range(&mut heap_ranges, reserved.clone());
-        }
+    fn compute_heap_range(&self, exclude_boot_stack: bool, exclude_dtb: bool) -> RangeSet<128> {
+        let mut heap_ranges = self.available_ranges.clone();
 
         if exclude_boot_stack {
-            exclude_reserved_range(&mut heap_ranges, layout::kernel_boot_stack_range());
+            heap_ranges.remove(layout::kernel_boot_stack_range());
         }
         if exclude_dtb {
-            exclude_reserved_range(&mut heap_ranges, self.dtb_range.clone());
+            heap_ranges.remove(self.dtb_range.clone());
         }
 
         heap_ranges
     }
-}
-
-fn exclude_reserved_range<const N: usize>(
-    ranges: &mut ArrayVec<Range<usize>, N>,
-    reserved: Range<usize>,
-) {
-    let mut out = ArrayVec::<Range<usize>, N>::new();
-    for range in ranges.iter() {
-        if range.start < reserved.end && reserved.start < range.end {
-            if range.start < reserved.start {
-                out.push(range.start..reserved.start);
-            }
-            if reserved.end < range.end {
-                out.push(reserved.end..range.end);
-            }
-        } else {
-            out.push(range.clone());
-        }
-    }
-    *ranges = out;
 }

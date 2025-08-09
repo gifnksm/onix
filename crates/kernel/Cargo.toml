@@ -24,6 +24,7 @@ cfg-if.workspace = true
 dataview.workspace = true
 devicetree.workspace = true
 platform-cast.workspace = true
+range-set.workspace = true
 riscv.workspace = true
 sbi.workspace = true
 snafu.workspace = true
