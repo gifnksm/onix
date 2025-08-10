@@ -1,9 +1,7 @@
 use core::ops::Range;
 
-use riscv::{
-    asm,
-    register::satp::{self, Satp},
-};
+use riscv::register::satp::{self, Satp};
+use riscv_utils::asm;
 use spin::Once;
 
 use super::{
@@ -18,6 +16,8 @@ use crate::{cpu, memory::Align as _};
 
 const STACK_SIZE: usize = 128 * 1024;
 
+const KERNEL_ASID: u16 = 0;
+
 #[derive(Debug)]
 pub struct KernelPageTable {
     pt: PageTableRoot,
@@ -25,7 +25,7 @@ pub struct KernelPageTable {
 
 impl KernelPageTable {
     fn new() -> Result<Self, PageTableError> {
-        let pt = PageTableRoot::new()?;
+        let pt = PageTableRoot::new(KERNEL_ASID)?;
         Ok(Self { pt })
     }
 
@@ -57,6 +57,10 @@ impl KernelPageTable {
     fn satp(&self) -> Satp {
         self.pt.satp()
     }
+
+    fn asid(&self) -> u16 {
+        self.pt.asid()
+    }
 }
 
 static KERNEL_PAGE_TABLE: Once<KernelPageTable> = Once::new();
@@ -78,16 +82,17 @@ pub fn init(memory_layout: &MemoryLayout) -> Result<(), PageTableError> {
 
 pub fn apply() {
     let kpgtbl = KERNEL_PAGE_TABLE.get().unwrap();
+    let asid = kpgtbl.asid();
 
     // wait for any previous writes to the page table memory to finish.
-    asm::sfence_vma_all();
+    asm::sfence_vma_asid_all(asid.into());
 
     let satp = kpgtbl.satp();
     unsafe {
         satp::write(satp);
     }
 
-    asm::sfence_vma_all();
+    asm::sfence_vma_asid_all(asid.into());
 }
 
 pub fn kernel_stack_ranges(cpu_index: usize) -> Range<usize> {

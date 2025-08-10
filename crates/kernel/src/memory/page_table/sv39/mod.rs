@@ -81,19 +81,25 @@ bitflags! {
     }
 }
 
-pub struct PageTableRoot(Box<PageTable>);
+pub struct PageTableRoot {
+    pt: Box<PageTable>,
+    asid: u16,
+}
 
 impl PageTableRoot {
-    pub fn new() -> Result<Self, PageTableError> {
-        Ok(Self(PageTable::try_allocate()?))
+    pub fn new(asid: u16) -> Result<Self, PageTableError> {
+        Ok(Self {
+            pt: PageTable::try_allocate()?,
+            asid,
+        })
     }
 
     fn as_ref(&self) -> PageTableRef<&PageTable> {
-        PageTableRef::new(&self.0, 2, VirtPageNum::MIN)
+        PageTableRef::new(&self.pt, 2, VirtPageNum::MIN)
     }
 
     fn as_mut(&mut self) -> PageTableRef<&mut PageTable> {
-        PageTableRef::new(&mut self.0, 2, VirtPageNum::MIN)
+        PageTableRef::new(&mut self.pt, 2, VirtPageNum::MIN)
     }
 
     pub fn phys_page_num(&self) -> PhysPageNum {
@@ -103,8 +109,13 @@ impl PageTableRoot {
     pub fn satp(&self) -> Satp {
         let mut satp = Satp::from_bits(0);
         satp.set_mode(Mode::Sv39);
+        satp.set_asid(self.asid.into());
         satp.set_ppn(self.phys_page_num().value().cast_into());
         satp
+    }
+
+    pub fn asid(&self) -> u16 {
+        self.asid
     }
 
     pub fn allocate_pages(

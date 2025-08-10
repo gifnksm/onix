@@ -26,6 +26,7 @@ endian = { path = "crates/endian" }
 platform-cast = "0.1.0"
 range-set = { path = "crates/range-set" }
 riscv = { version = "0.14.0", features = ["s-mode"] }
+riscv-utils = { path = "crates/riscv-utils" }
 sbi = { path = "crates/sbi" }
 sbi-sys = { path = "crates/sbi-sys" }
 snafu = { version = "0.8.6", default-features = false, features = ["rust_1_81"] }

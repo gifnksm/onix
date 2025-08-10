@@ -26,6 +26,7 @@ devicetree.workspace = true
 platform-cast.workspace = true
 range-set.workspace = true
 riscv.workspace = true
+riscv-utils.workspace = true
 sbi.workspace = true
 snafu.workspace = true
 snafu-utils.workspace = true

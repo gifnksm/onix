@@ -160,6 +160,7 @@ dependencies = [
  "platform-cast",
  "range-set",
  "riscv",
+ "riscv-utils",
  "sbi",
  "snafu",
  "snafu-utils",
@@ -242,6 +243,13 @@ name = "riscv-pac"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8188909339ccc0c68cfb5a04648313f09621e8b87dc03095454f1a11f6c5d436"
+
+[[package]]
+name = "riscv-utils"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+]
 
 [[package]]
 name = "sbi"
