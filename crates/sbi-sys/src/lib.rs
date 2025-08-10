@@ -12,6 +12,7 @@ use core::{fmt, num::NonZeroIsize};
 
 pub mod debug_console;
 pub mod hart_state_management;
+pub mod rfence;
 
 /// Represents an SBI error code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
