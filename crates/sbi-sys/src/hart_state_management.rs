@@ -18,7 +18,7 @@ pub const EXTENSION_ID: usize = 0x48_53_4D; // 'HSM' in ASCII
 /// This function is unsafe because it performs a raw SBI call with the provided
 /// memory addresses. The caller must ensure that the `start_addr` is a valid
 /// memory address and that the `opaque` value is properly initialized.
-pub unsafe fn start(hartid: usize, start_addr: usize, opaque: usize) -> SbiRet {
+pub unsafe fn hart_start(hartid: usize, start_addr: usize, opaque: usize) -> SbiRet {
     const FUNCTION_ID: usize = 0x0;
     unsafe { crate::ecall3(hartid, start_addr, opaque, EXTENSION_ID, FUNCTION_ID) }
 }
@@ -29,7 +29,7 @@ pub unsafe fn start(hartid: usize, start_addr: usize, opaque: usize) -> SbiRet {
 /// This call is not expected to return under normal conditions.
 ///
 /// This function must be called with supervisor-mode interrupts disabled.
-pub fn stop() -> SbiRet {
+pub fn hart_stop() -> SbiRet {
     const FUNCTION_ID: usize = 0x1;
     unsafe { crate::ecall0(EXTENSION_ID, FUNCTION_ID) }
 }
@@ -69,7 +69,7 @@ pub const HART_STATE_SUSPEND_PENDING: isize = 5;
 pub const HART_STATE_RESUME_PENDING: isize = 6;
 
 /// Gets the current status (or HSM state id) of the given hart.
-pub fn get_status(hartid: usize) -> SbiRet {
+pub fn hart_get_status(hartid: usize) -> SbiRet {
     const FUNCTION_ID: usize = 0x2;
     unsafe { crate::ecall1(hartid, EXTENSION_ID, FUNCTION_ID) }
 }
@@ -82,7 +82,7 @@ pub fn get_status(hartid: usize) -> SbiRet {
 /// This function is unsafe because it performs a raw SBI call with the provided
 /// memory addresses. The caller must ensure that the `resume_addr` is a valid
 /// memory address and that the `opaque` value is properly initialized.
-pub unsafe fn suspend(suspend_type: u32, resume_addr: usize, opaque: usize) -> SbiRet {
+pub unsafe fn hart_suspend(suspend_type: u32, resume_addr: usize, opaque: usize) -> SbiRet {
     const FUNCTION_ID: usize = 0x3;
     unsafe {
         crate::ecall3(

@@ -17,8 +17,8 @@ use sbi_sys::{
 /// This function is unsafe because it performs a raw SBI call with the provided
 /// memory addresses. The caller must ensure that the `start_addr` is a valid
 /// memory address and that the `opaque` value is properly initialized.
-pub unsafe fn start(hartid: usize, start_addr: usize, opaque: usize) -> Result<(), SbiError> {
-    let ret = unsafe { hart_state_management::start(hartid, start_addr, opaque) };
+pub unsafe fn hart_start(hartid: usize, start_addr: usize, opaque: usize) -> Result<(), SbiError> {
+    let ret = unsafe { hart_state_management::hart_start(hartid, start_addr, opaque) };
     ret.into_result()?;
     Ok(())
 }
@@ -29,8 +29,8 @@ pub unsafe fn start(hartid: usize, start_addr: usize, opaque: usize) -> Result<(
 /// This call is not expected to return under normal conditions.
 ///
 /// This function must be called with supervisor-mode interrupts disabled.
-pub fn stop() -> Result<Infallible, SbiError> {
-    let ret = hart_state_management::stop();
+pub fn hart_stop() -> Result<Infallible, SbiError> {
+    let ret = hart_state_management::hart_stop();
     ret.into_result()?;
     unreachable!("SBI stop should not return under normal conditions");
 }
@@ -92,8 +92,8 @@ impl HartState {
 }
 
 /// Gets the current status (or HSM state id) of the given hart.
-pub fn get_status(hartid: usize) -> Result<HartState, SbiError> {
-    let ret = hart_state_management::get_status(hartid);
+pub fn hart_get_status(hartid: usize) -> Result<HartState, SbiError> {
+    let ret = hart_state_management::hart_get_status(hartid);
     let state = ret.into_result()?;
     Ok(HartState::from_sbi_state(state))
 }
@@ -106,12 +106,12 @@ pub fn get_status(hartid: usize) -> Result<HartState, SbiError> {
 /// This function is unsafe because it performs a raw SBI call with the provided
 /// memory addresses. The caller must ensure that the `resume_addr` is a valid
 /// memory address and that the `opaque` value is properly initialized.
-pub unsafe fn suspend(
+pub unsafe fn hart_suspend(
     suspend_type: u32,
     resume_addr: usize,
     opaque: usize,
 ) -> Result<(), SbiError> {
-    let ret = unsafe { hart_state_management::suspend(suspend_type, resume_addr, opaque) };
+    let ret = unsafe { hart_state_management::hart_suspend(suspend_type, resume_addr, opaque) };
     ret.into_result()?;
     Ok(())
 }
