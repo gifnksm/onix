@@ -91,3 +91,9 @@ impl<T> DerefMut for SpinMutexGuard<'_, T> {
         unsafe { &mut *self.mutex.data.get() }
     }
 }
+
+impl<T> SpinMutexGuard<'_, T> {
+    pub fn unlock(self) {
+        let _ = self; // drop
+    }
+}

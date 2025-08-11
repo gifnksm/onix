@@ -52,13 +52,21 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     interrupt::init(cpuid);
     memory::kernel_space::init(&memory_layout).unwrap();
     memory::kernel_space::apply();
-    cpu::current().stack_top()
+
+    let stack = memory::kernel_space::allocate_kernel_stack().unwrap();
+    let stack_top = stack.top();
+    core::mem::forget(stack);
+    stack_top as *mut u8
 }
 
 fn secondary_cpu_entry(cpuid: Cpuid) -> *mut u8 {
     cpu::set_current_cpuid(cpuid);
     memory::kernel_space::apply();
-    cpu::current().stack_top()
+
+    let stack = memory::kernel_space::allocate_kernel_stack().unwrap();
+    let stack_top = stack.top();
+    core::mem::forget(stack);
+    stack_top as *mut u8
 }
 
 fn main() -> ! {

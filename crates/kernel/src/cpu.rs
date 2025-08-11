@@ -1,5 +1,5 @@
-use alloc::vec::Vec;
-use core::{arch::asm, ptr};
+use alloc::{slice, vec::Vec};
+use core::{arch::asm, fmt, iter::Peekable};
 
 use devicetree::{
     common::property::{ParsePropertyValueError, Reg},
@@ -10,19 +10,19 @@ use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 use spin::Once;
 
-use crate::{
-    interrupt,
-    memory::{
-        kernel_space::{self, KernelPageTable},
-        page_table::sv39::{MapPageFlags, PageTableError},
-    },
-};
+use crate::interrupt;
 
 pub const INVALID_CPU_INDEX: usize = usize::MAX;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Cpuid(usize);
+
+impl fmt::Display for Cpuid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
+    }
+}
 
 impl Cpuid {
     pub fn value(self) -> usize {
@@ -38,7 +38,6 @@ impl Cpuid {
 pub struct Cpu {
     id: Cpuid,
     index: usize,
-    stack_top: *mut u8,
     timer_frequency: u64,
 }
 
@@ -48,10 +47,6 @@ unsafe impl Sync for Cpu {}
 impl Cpu {
     pub fn id(&self) -> Cpuid {
         self.id
-    }
-
-    pub fn stack_top(&self) -> *mut u8 {
-        self.stack_top
     }
 
     pub fn timer_frequency(&self) -> u64 {
@@ -164,14 +159,9 @@ pub fn init(dtree: &Devicetree) -> Result<(), CpuInitError> {
 
     let mut cpus = Vec::new();
 
-    for (index, cpu_node) in cpus_node
-        .children()
-        .filter(|node| node.name() == "cpu")
-        .enumerate()
-    {
+    for cpu_node in cpus_node.children().filter(|node| node.name() == "cpu") {
         let reg = get_reg(&cpu_node, address_cells, size_cells).context(PropertyInCpuSnafu)?;
         let id = Cpuid(reg.address);
-        let stack_range = kernel_space::kernel_stack_ranges(index);
         let timer_frequency = get_u32_or_u64_prop(&cpu_node, "timebase-frequency")
             .or_else(|_| get_u32_or_u64_prop(&cpus_node, "timebase-frequency"))
             .context(PropertyInCpusSnafu)?;
@@ -182,23 +172,19 @@ pub fn init(dtree: &Devicetree) -> Result<(), CpuInitError> {
 
         cpus.push(Cpu {
             id,
-            index,
-            stack_top: ptr::with_exposed_provenance_mut(stack_range.end),
+            index: usize::MAX,
             timer_frequency,
         });
     }
 
+    // sort cpus by cpuid and update index
+    cpus.sort_by(|a, b| Cpuid::cmp(&a.id, &b.id));
+    for (index, cpu) in cpus.iter_mut().enumerate() {
+        cpu.index = index;
+    }
+
     CPUS.call_once(|| cpus);
 
-    Ok(())
-}
-
-pub fn update_kernel_page_table(kpgtbl: &mut KernelPageTable) -> Result<(), PageTableError> {
-    let cpus = CPUS.get().unwrap();
-    for cpu in cpus {
-        let stack_range = kernel_space::kernel_stack_ranges(cpu.index);
-        kpgtbl.allocate_virt_addr_range(stack_range, MapPageFlags::RW)?;
-    }
     Ok(())
 }
 
@@ -243,4 +229,63 @@ pub fn len() -> usize {
 
 pub fn get_all() -> &'static [Cpu] {
     CPUS.get().unwrap()
+}
+
+#[derive(Clone, Copy)]
+pub struct CpuMask {
+    pub mask: usize,
+    pub base: usize,
+}
+
+impl fmt::Debug for CpuMask {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_set()
+            .entries(
+                (0..usize::BITS)
+                    .filter(|&i| self.mask & (1 << i) != 0)
+                    .map(|i| Cpuid(self.base + usize::cast_from(i))),
+            )
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RemoteCpuMaskIter {
+    current_cpuid: Cpuid,
+    cpus: Peekable<slice::Iter<'static, Cpu>>,
+}
+
+impl Iterator for RemoteCpuMaskIter {
+    type Item = CpuMask;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let base_cpu = self.cpus.next()?;
+            if base_cpu.id() == self.current_cpuid {
+                continue;
+            }
+
+            let base = base_cpu.id().value();
+            let mut mask = 1;
+            while let Some(cpu) = self
+                .cpus
+                .next_if(|cpu| cpu.id().value() - base < usize::cast_from(usize::BITS))
+            {
+                if cpu.id() != self.current_cpuid {
+                    mask |= 1 << (cpu.id().value() - base);
+                }
+            }
+
+            return Some(CpuMask { mask, base });
+        }
+    }
+}
+
+pub fn remote_cpu_masks() -> RemoteCpuMaskIter {
+    let current_cpuid = current().id();
+    let cpus = CPUS.get().unwrap().iter().peekable();
+    RemoteCpuMaskIter {
+        current_cpuid,
+        cpus,
+    }
 }

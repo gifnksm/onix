@@ -8,7 +8,7 @@
 
 #![no_std]
 
-use core::{fmt, num::NonZeroIsize};
+use core::{error::Error, fmt, num::NonZeroIsize};
 
 pub mod debug_console;
 pub mod hart_state_management;
@@ -67,6 +67,8 @@ impl fmt::Display for SbiError {
         }
     }
 }
+
+impl Error for SbiError {}
 
 /// The return value of an SBI call.
 ///
