@@ -131,7 +131,7 @@ impl<R> PageTableEntryRef<R> {
     }
 
     pub(super) fn max_vpn(&self) -> VirtPageNum {
-        self.base_vpn.add(self.vpn_count() - 1)
+        self.base_vpn + (self.vpn_count() - 1)
     }
 
     pub(super) fn min_virt_addr(&self) -> VirtAddr {
@@ -182,7 +182,7 @@ where
     }
 
     pub(super) fn max_ppn(&self) -> Option<PhysPageNum> {
-        Some(self.phys_page_num()?.add(self.vpn_count() - 1))
+        Some(self.phys_page_num()? + (self.vpn_count() - 1))
     }
 
     pub(super) fn min_phys_addr(&self) -> Option<PhysAddr> {

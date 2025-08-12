@@ -118,7 +118,7 @@ where
                 break;
             }
 
-            let vpn = vpn_base.add(mapped_count);
+            let vpn = vpn_base + mapped_count;
             assert_eq!(level_index, vpn.level_index(self.level));
             assert!(self.min_vpn() <= vpn && vpn <= self.max_vpn());
 
@@ -153,8 +153,8 @@ where
                 break;
             }
 
-            let vpn = vpn_base.add(mapped_count);
-            let ppn = ppn_base.add(mapped_count);
+            let vpn = vpn_base + mapped_count;
+            let ppn = ppn_base + mapped_count;
             assert_eq!(level_index, vpn.level_index(self.level));
             assert!(self.min_vpn() <= vpn && vpn <= self.max_vpn());
 

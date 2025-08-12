@@ -29,6 +29,7 @@ pub const PAGE_SIZE: usize = 4096;
 const PAGE_SHIFT: usize = 12;
 const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 
+/// Errors that can occur during page table operations.
 #[derive(Debug, Snafu)]
 pub enum PageTableError {
     #[snafu(display("failed to allocate new page table"))]
@@ -58,6 +59,9 @@ pub enum PageTableError {
 }
 
 bitflags! {
+    /// Flags for mapping pages in the page table.
+    ///
+    /// These flags control the permissions and properties of mapped pages.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct MapPageFlags: u64 {
         /// Read Bit of page table entry.
@@ -91,12 +95,17 @@ bitflags! {
     }
 }
 
+/// Root of an SV39 page table hierarchy.
+///
+/// This structure represents the top-level page table and provides methods
+/// for mapping pages and managing the virtual memory space.
 pub struct PageTableRoot {
     pt: Box<PageTable>,
     asid: u16,
 }
 
 impl PageTableRoot {
+    /// Creates a new page table root with the specified ASID.
     pub fn new(asid: u16) -> Result<Self, PageTableError> {
         Ok(Self {
             pt: PageTable::try_allocate()?,
@@ -112,10 +121,19 @@ impl PageTableRoot {
         PageTableRef::new(&mut self.pt, 2, VirtPageNum::MIN)
     }
 
+    /// Returns the physical page number of the root page table.
+    ///
+    /// This is used for setting the SATP register.
+    #[must_use]
     pub fn phys_page_num(&self) -> PhysPageNum {
         self.as_ref().phys_page_num()
     }
 
+    /// Returns the SATP register value for this page table.
+    ///
+    /// This value can be written to the SATP register to activate this page
+    /// table.
+    #[must_use]
     pub fn satp(&self) -> Satp {
         let mut satp = Satp::from_bits(0);
         satp.set_mode(Mode::Sv39);
@@ -124,10 +142,32 @@ impl PageTableRoot {
         satp
     }
 
+    /// Returns the Address Space Identifier (ASID) for this page table.
+    #[must_use]
     pub fn asid(&self) -> u16 {
         self.asid
     }
 
+    /// Allocates and maps pages starting from the specified virtual page
+    /// number.
+    ///
+    /// This function allocates physical memory and maps it to the virtual
+    /// address space.
+    ///
+    /// # Arguments
+    ///
+    /// * `virt_page_num` - Starting virtual page number for mapping
+    /// * `count` - Number of pages to allocate and map
+    /// * `flags` - Permission flags for the mapped pages
+    ///
+    /// # Returns
+    ///
+    /// The actual number of pages that were successfully mapped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if allocation fails, flags are invalid, or pages are
+    /// already mapped.
     pub fn allocate_pages(
         &mut self,
         virt_page_num: VirtPageNum,
@@ -137,6 +177,25 @@ impl PageTableRoot {
         self.as_mut().allocate_pages(virt_page_num, count, flags)
     }
 
+    /// Maps existing physical pages to virtual addresses.
+    ///
+    /// This function creates mappings from virtual pages to existing physical
+    /// pages.
+    ///
+    /// # Arguments
+    ///
+    /// * `virt_page_num` - Starting virtual page number for mapping
+    /// * `phys_page_num` - Starting physical page number to map
+    /// * `count` - Number of pages to map
+    /// * `flags` - Permission flags for the mapped pages
+    ///
+    /// # Returns
+    ///
+    /// The actual number of pages that were successfully mapped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if flags are invalid or pages are already mapped.
     pub fn map_fixed_pages(
         &mut self,
         virt_page_num: VirtPageNum,
