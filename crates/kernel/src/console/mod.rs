@@ -8,7 +8,7 @@ use core::{
 use ansi_term::{Color, WithFg};
 
 use self::{line_buffered::LineBufferedConsole, sbi_debug::SbiDebugConsole};
-use crate::spinlock::SpinMutex;
+use crate::sync::spinlock::SpinMutex;
 
 mod line_buffered;
 mod sbi_debug;

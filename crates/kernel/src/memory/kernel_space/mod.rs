@@ -16,7 +16,7 @@ use super::{
     PAGE_SIZE,
     layout::{self, MemoryLayout},
 };
-use crate::{cpu, memory::Align as _, spinlock::SpinMutex};
+use crate::{cpu, memory::Align as _, sync::spinlock::SpinMutex};
 
 mod stack;
 

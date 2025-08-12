@@ -7,7 +7,7 @@ use core::{
 use allocator::fixed_size_block::FixedSizeBlockAllocator;
 use range_set::RangeSet;
 
-use crate::spinlock::SpinMutex;
+use crate::sync::spinlock::SpinMutex;
 
 #[global_allocator]
 static ALLOCATOR: LockedKernelAllocator = LockedKernelAllocator::new();
