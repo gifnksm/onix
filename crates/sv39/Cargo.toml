@@ -1,5 +1,5 @@
 [package]
-name = "kernel"
+name = "sv39"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,25 +10,12 @@ license.workspace = true
 keywords.workspace = true
 publish.workspace = true
 
-[[bin]]
-name = "kernel"
-test = false
-bench = false
-
 [dependencies]
-allocator.workspace = true
-ansi-term.workspace = true
-cfg-if.workspace = true
-devicetree.workspace = true
+bitflags.workspace = true
+dataview.workspace = true
 platform-cast.workspace = true
-range-set.workspace = true
 riscv.workspace = true
-riscv-utils.workspace = true
-sbi.workspace = true
 snafu.workspace = true
-snafu-utils.workspace = true
-spin.workspace = true
-sv39.workspace = true
 
 [lints]
 workspace = true

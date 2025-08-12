@@ -1,3 +1,8 @@
+#![feature(allocator_api)]
+#![cfg_attr(not(test), no_std)]
+
+extern crate alloc;
+
 use alloc::boxed::Box;
 use core::{
     alloc::{AllocError, Layout},
@@ -18,6 +23,10 @@ use self::{
 pub mod address;
 mod entry;
 mod table;
+
+pub const PAGE_SIZE: usize = 4096;
+const PAGE_SHIFT: usize = 12;
+const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 
 #[derive(Debug, Snafu)]
 pub enum PageTableError {

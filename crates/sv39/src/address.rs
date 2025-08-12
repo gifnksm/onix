@@ -2,7 +2,7 @@ use core::{fmt, ptr};
 
 use platform_cast::{CastFrom as _, CastInto};
 
-use crate::memory::{PAGE_SHIFT, PAGE_SIZE};
+use crate::{PAGE_SHIFT, PAGE_SIZE};
 
 macro_rules! impl_hex {
     ($ty:ty) => {

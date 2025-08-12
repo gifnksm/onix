@@ -4,12 +4,10 @@ use devicetree::flattened::Devicetree;
 use range_set::RangeSet;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
+use sv39::{MapPageFlags, PageTableError};
 
 use self::fdt::DevicetreeError;
-use super::{
-    kernel_space::KernelPageTable,
-    page_table::sv39::{MapPageFlags, PageTableError},
-};
+use super::kernel_space::KernelPageTable;
 
 mod fdt;
 

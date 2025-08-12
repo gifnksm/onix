@@ -3,11 +3,8 @@ use core::ops::Range;
 pub mod allocator;
 pub mod kernel_space;
 pub mod layout;
-pub mod page_table;
 
-pub const PAGE_SIZE: usize = 4096;
-pub const PAGE_SHIFT: usize = 12;
-const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
+pub const PAGE_SIZE: usize = sv39::PAGE_SIZE;
 
 pub trait Align: Sized {
     fn align_up(&self, align: usize) -> Self;

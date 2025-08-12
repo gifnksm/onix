@@ -6,15 +6,15 @@ use sbi::{SbiError, rfence};
 use snafu::{OptionExt as _, ResultExt as _, Snafu};
 use snafu_utils::Location;
 use spin::Once;
+use sv39::{
+    MapPageFlags, PageTableError, PageTableRoot,
+    address::{PhysAddr, VirtAddr},
+};
 
 use self::stack::StackSlot;
 use super::{
     PAGE_SIZE,
     layout::{self, MemoryLayout},
-    page_table::sv39::{
-        MapPageFlags, PageTableError, PageTableRoot,
-        address::{PhysAddr, VirtAddr},
-    },
 };
 use crate::{cpu, memory::Align as _, spinlock::SpinMutex};
 

@@ -152,10 +152,7 @@ version = "0.1.0"
 dependencies = [
  "allocator",
  "ansi-term",
- "arrayvec",
- "bitflags",
  "cfg-if",
- "dataview",
  "devicetree",
  "platform-cast",
  "range-set",
@@ -165,6 +162,7 @@ dependencies = [
  "snafu",
  "snafu-utils",
  "spin",
+ "sv39",
 ]
 
 [[package]]
@@ -313,6 +311,17 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "sv39"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "dataview",
+ "platform-cast",
+ "riscv",
+ "snafu",
+]
 
 [[package]]
 name = "syn"

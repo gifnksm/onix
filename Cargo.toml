@@ -32,6 +32,7 @@ sbi-sys = { path = "crates/sbi-sys" }
 snafu = { version = "0.8.6", default-features = false, features = ["rust_1_81"] }
 snafu-utils = { path = "crates/snafu-utils" }
 spin = "0.10.0"
+sv39 = { path = "crates/sv39" }
 
 [profile.dev]
 panic = "abort"

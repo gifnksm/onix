@@ -13,7 +13,7 @@ use super::{
     address::{PhysPageNum, VirtAddr, VirtPageNum},
     table::PageTableRef,
 };
-use crate::memory::{PAGE_SIZE, page_table::sv39::address::PhysAddr};
+use crate::{PAGE_SIZE, address::PhysAddr};
 
 bitflags! {
     /// Flags for SV39 page table entries.
