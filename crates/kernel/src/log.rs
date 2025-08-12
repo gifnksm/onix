@@ -1,3 +1,4 @@
+use alloc::sync::Arc;
 use core::{fmt, panic::Location, time::Duration};
 
 use ansi_term::{Color, WithFg};
@@ -5,6 +6,7 @@ use ansi_term::{Color, WithFg};
 use crate::{
     cpu::{self, Cpu},
     interrupt::{self, timer},
+    task::{Task, scheduler},
 };
 
 macro_rules! log {
@@ -13,6 +15,7 @@ macro_rules! log {
     };
 }
 
+#[expect(unused_macros)]
 macro_rules! trace {
     ($($arg:tt)*) => {
         log!($crate::log::LogLevel::Trace, $($arg)*);
@@ -52,9 +55,10 @@ pub fn log(level: LogLevel, message: fmt::Arguments) {
 
     let now = TimeFormat(timer::try_now());
     let level = LevelFormat(level);
+    let task = TaskFormat(scheduler::current_task());
     let cpu = CpuFormat(cpu::try_current());
     let location = LocationFormat(Location::caller());
-    println!("{now} {cpu} {level} {message} {location}");
+    println!("{now} [{task}@{cpu}] {level} {message} {location}");
 }
 
 #[expect(dead_code)]
@@ -80,13 +84,25 @@ impl fmt::Display for TimeFormat {
 }
 
 #[derive(Debug)]
+struct TaskFormat(Option<Arc<Task>>);
+
+impl fmt::Display for TaskFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(task) => write!(f, "{}", task.id()),
+            None => write!(f, "S"),
+        }
+    }
+}
+
+#[derive(Debug)]
 struct CpuFormat<'a>(Option<&'a Cpu>);
 
 impl fmt::Display for CpuFormat<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(cpu) => write!(f, "[{}]", cpu.id().value()),
-            None => write!(f, "[?]"),
+            Some(cpu) => write!(f, "{}", cpu.id()),
+            None => write!(f, "?"),
         }
     }
 }

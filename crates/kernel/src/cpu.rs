@@ -49,6 +49,10 @@ impl Cpu {
         self.id
     }
 
+    pub(crate) fn index(&self) -> usize {
+        self.index
+    }
+
     pub fn timer_frequency(&self) -> u64 {
         self.timer_frequency
     }

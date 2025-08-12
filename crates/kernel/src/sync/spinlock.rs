@@ -1,11 +1,12 @@
 use core::{
     cell::UnsafeCell,
+    fmt, hint,
     ops::{Deref, DerefMut},
     panic::Location,
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::interrupt;
+use crate::interrupt::{self, InterruptGuard};
 
 pub struct SpinMutex<T> {
     locked: AtomicBool,
@@ -29,6 +30,20 @@ where
 
 unsafe impl<T> Sync for SpinMutex<T> where T: Send {}
 
+impl<T> fmt::Debug for SpinMutex<T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct("SpinMutex");
+        match self.try_lock() {
+            Some(guard) => d.field("data", &&*guard),
+            None => d.field("data", &"<locked>"),
+        };
+        d.finish()
+    }
+}
+
 impl<T> SpinMutex<T> {
     pub const fn new(data: T) -> Self {
         Self {
@@ -42,7 +57,9 @@ impl<T> SpinMutex<T> {
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
         let interrupt_guard = interrupt::disable();
 
-        while self.locked.swap(true, Ordering::Acquire) {}
+        while self.locked.swap(true, Ordering::Acquire) {
+            hint::spin_loop();
+        }
 
         unsafe {
             *self.locked_at.get() = Location::caller();
@@ -54,15 +71,41 @@ impl<T> SpinMutex<T> {
         }
     }
 
+    #[track_caller]
+    pub fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
+        let interrupt_guard = interrupt::disable();
+
+        if self.locked.swap(true, Ordering::Acquire) {
+            return None;
+        }
+
+        unsafe {
+            *self.locked_at.get() = Location::caller();
+        }
+
+        Some(SpinMutexGuard {
+            mutex: self,
+            _interrupt_guard: interrupt_guard,
+        })
+    }
+
     fn is_locked(&self) -> bool {
-        // TODO: check if the current hardware thread is the owner
+        assert!(!interrupt::is_enabled());
         self.locked.load(Ordering::Relaxed)
+    }
+
+    pub unsafe fn remember_locked(&self) -> SpinMutexGuard<'_, T> {
+        assert!(self.is_locked());
+        SpinMutexGuard {
+            mutex: self,
+            _interrupt_guard: unsafe { interrupt::remember_disabled() },
+        }
     }
 }
 
 pub struct SpinMutexGuard<'a, T> {
     mutex: &'a SpinMutex<T>,
-    _interrupt_guard: interrupt::Guard,
+    _interrupt_guard: InterruptGuard,
 }
 
 unsafe impl<T> Send for SpinMutexGuard<'_, T> where T: Send {}

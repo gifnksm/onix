@@ -153,6 +153,7 @@ dependencies = [
  "allocator",
  "ansi-term",
  "cfg-if",
+ "dataview",
  "devicetree",
  "platform-cast",
  "range-set",

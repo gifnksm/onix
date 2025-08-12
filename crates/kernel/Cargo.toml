@@ -19,6 +19,7 @@ bench = false
 allocator.workspace = true
 ansi-term.workspace = true
 cfg-if.workspace = true
+dataview.workspace = true
 devicetree.workspace = true
 platform-cast.workspace = true
 range-set.workspace = true

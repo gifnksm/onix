@@ -100,6 +100,7 @@ pub fn apply() {
     asm::sfence_vma_asid_all(asid.into());
 }
 
+#[derive(Debug)]
 pub struct KernelStack {
     slot: StackSlot,
 }

@@ -25,11 +25,24 @@ pub fn init(boot_cpuid: Cpuid) {
     CPU_STATE.call_once(|| iter::repeat_with(CpuState::new).take(cpu::len()).collect());
 }
 
-pub fn disable() -> Guard {
+pub fn disable() -> InterruptGuard {
     let state = imp::read_and_disable();
     let cpu_state = cpu_state();
     cpu_state.push_state(state);
-    Guard {
+    InterruptGuard {
+        _not_send: PhantomData,
+    }
+}
+
+pub fn disabled_depth() -> usize {
+    cpu_state().disabled_depth()
+}
+
+pub unsafe fn remember_disabled() -> InterruptGuard {
+    assert!(!is_enabled());
+    let cpu_state = cpu_state();
+    assert!(cpu_state.disabled_depth.load(Ordering::Relaxed) > 0);
+    InterruptGuard {
         _not_send: PhantomData,
     }
 }
@@ -39,11 +52,11 @@ pub fn is_enabled() -> bool {
 }
 
 #[derive(Debug)]
-pub struct Guard {
+pub struct InterruptGuard {
     _not_send: PhantomData<*mut ()>,
 }
 
-impl Drop for Guard {
+impl Drop for InterruptGuard {
     fn drop(&mut self) {
         let cpu_state = cpu_state();
         if let Some(initial_state) = cpu_state.pop_state() {
@@ -97,6 +110,35 @@ impl CpuState {
             unsafe { Some(*self.initial_state.get()) }
         } else {
             None
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SavedState {
+    disabled_depth: usize,
+    initial_state: imp::State,
+}
+
+pub fn save_state() -> SavedState {
+    assert!(!is_enabled());
+    let state = cpu_state();
+    assert!(state.disabled_depth() > 0);
+    SavedState {
+        disabled_depth: state.disabled_depth(),
+        initial_state: unsafe { *state.initial_state.get() },
+    }
+}
+
+impl SavedState {
+    pub fn restore(self) {
+        assert!(!is_enabled());
+        let state = cpu_state();
+        state
+            .disabled_depth
+            .store(self.disabled_depth, Ordering::Release);
+        unsafe {
+            *state.initial_state.get() = self.initial_state;
         }
     }
 }
