@@ -16,6 +16,7 @@ dataview.workspace = true
 platform-cast.workspace = true
 riscv.workspace = true
 snafu.workspace = true
+snafu-utils.workspace = true
 
 [lints]
 workspace = true

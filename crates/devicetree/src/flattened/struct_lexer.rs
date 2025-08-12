@@ -19,7 +19,8 @@ use core::{iter::FusedIterator, str::Utf8Error};
 
 use dataview::Pod;
 use platform_cast::CastFrom as _;
-use snafu::{Location, OptionExt as _, ResultExt as _, Snafu};
+use snafu::{OptionExt as _, ResultExt as _, Snafu};
+use snafu_utils::Location;
 
 use super::{
     Devicetree,

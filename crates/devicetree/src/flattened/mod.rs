@@ -12,7 +12,8 @@ use core::{ptr, slice};
 
 use dataview::DataView;
 use platform_cast::CastFrom as _;
-use snafu::{Location, ResultExt as _, Snafu, ensure};
+use snafu::{ResultExt as _, Snafu, ensure};
+use snafu_utils::Location;
 
 use self::{
     layout::{Header, HeaderValidationError, ReserveEntry},

@@ -12,7 +12,8 @@ use core::{
 use bitflags::bitflags;
 use platform_cast::CastInto as _;
 use riscv::register::satp::{Mode, Satp};
-use snafu::{Location, Snafu};
+use snafu::Snafu;
+use snafu_utils::Location;
 
 use self::{
     address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum},

@@ -42,7 +42,8 @@ use core::{ops::Range, str::Utf8Error};
 use dataview::Pod;
 use endian::Be;
 use platform_cast::CastFrom as _;
-use snafu::{Location, Snafu, ensure};
+use snafu::{Snafu, ensure};
+use snafu_utils::Location;
 
 const MAGIC: u32 = 0xd00d_feed;
 const SPEC_VERSION: u32 = 17;

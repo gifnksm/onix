@@ -321,6 +321,7 @@ dependencies = [
  "platform-cast",
  "riscv",
  "snafu",
+ "snafu-utils",
 ]
 
 [[package]]
