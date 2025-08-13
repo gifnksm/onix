@@ -1,12 +1,19 @@
+use alloc::{
+    collections::vec_deque::VecDeque,
+    sync::{Arc, Weak},
+};
 use core::{
     cell::UnsafeCell,
     fmt, hint,
     ops::{Deref, DerefMut},
     panic::Location,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, AtomicU64, Ordering},
 };
 
-use crate::interrupt::{self, InterruptGuard};
+use crate::{
+    interrupt::{self, InterruptGuard},
+    task::{self, Task, scheduler},
+};
 
 pub struct SpinMutex<T> {
     locked: AtomicBool,
@@ -138,5 +145,71 @@ impl<T> DerefMut for SpinMutexGuard<'_, T> {
 impl<T> SpinMutexGuard<'_, T> {
     pub fn unlock(self) {
         let _ = self; // drop
+    }
+}
+
+#[derive(Debug)]
+pub struct SpinMutexCondVar {
+    generation: AtomicU64,
+    waiters: SpinMutex<VecDeque<Weak<Task>>>,
+}
+
+impl SpinMutexCondVar {
+    pub const fn new() -> Self {
+        Self {
+            generation: AtomicU64::new(0),
+            waiters: SpinMutex::new(VecDeque::new()),
+        }
+    }
+
+    pub fn wait<'a, T>(&self, mut guard: SpinMutexGuard<'a, T>) -> SpinMutexGuard<'a, T> {
+        let start_generation = self.generation.load(Ordering::Relaxed);
+
+        let int = interrupt::push_disabled();
+        let task = scheduler::current_task().unwrap();
+        drop(int);
+
+        loop {
+            let mut waiters = self.waiters.lock();
+            waiters.push_back(Arc::downgrade(&task));
+            drop(waiters);
+
+            let mut shared = task.shared.lock();
+            let mutex = guard.mutex;
+            guard.unlock();
+
+            task::sleep(&mut shared);
+
+            guard = mutex.lock();
+            let current_generation = self.generation.load(Ordering::Acquire);
+            if current_generation != start_generation {
+                break;
+            }
+        }
+
+        guard
+    }
+
+    pub fn notify_all(&self) {
+        self.generation.fetch_add(1, Ordering::Release);
+        while let Some(task) = { self.waiters.lock().pop_front() } {
+            let Some(task) = Weak::upgrade(&task) else {
+                continue;
+            };
+            let mut shared = task.shared.lock();
+            task::wakeup(&mut shared);
+        }
+    }
+
+    pub fn notify_one(&self) {
+        self.generation.fetch_add(1, Ordering::Release);
+        while let Some(task) = { self.waiters.lock().pop_front() } {
+            let Some(task) = Weak::upgrade(&task) else {
+                continue;
+            };
+            let mut shared = task.shared.lock();
+            task::wakeup(&mut shared);
+            break;
+        }
     }
 }

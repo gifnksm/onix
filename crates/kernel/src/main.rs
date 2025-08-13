@@ -2,12 +2,18 @@
 #![no_std]
 #![no_main]
 
-use core::{ffi::c_void, ptr};
+use alloc::{collections::vec_deque::VecDeque, sync::Arc};
+use core::ffi::c_void;
 
 use devicetree::parsed::Devicetree;
 use spin::Once;
 
-use self::{cpu::Cpuid, memory::layout::MemoryLayout};
+use self::{
+    cpu::Cpuid,
+    memory::layout::MemoryLayout,
+    sync::spinlock::{SpinMutex, SpinMutexCondVar},
+    task::{TaskId, scheduler},
+};
 
 extern crate alloc;
 
@@ -86,23 +92,24 @@ fn main() -> ! {
 
     info!("CPU initialized");
 
-    let tid = task::spawn(task_entry, ptr::null_mut()).unwrap();
-    info!("Task {tid} spawned");
-    let tid = task::spawn(task_entry, ptr::null_mut()).unwrap();
-    info!("Task {tid} spawned");
+    if is_primary {
+        let state = Arc::new(TaskState {
+            queue: SpinMutex::new(VecDeque::new()),
+            message_sent: SpinMutexCondVar::new(),
+            message_received: SpinMutexCondVar::new(),
+        });
+
+        task::spawn(rx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(rx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(rx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(rx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(tx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(tx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(tx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+        task::spawn(tx_task, Arc::into_raw(Arc::clone(&state)).cast_mut().cast()).unwrap();
+    }
 
     task::scheduler::start();
-}
-
-extern "C" fn task_entry(_arg: *mut c_void) -> ! {
-    let int = interrupt::push_disabled();
-    let task = task::scheduler::current_task().unwrap();
-    drop(int);
-
-    loop {
-        info!("hello from task {}", task.id());
-        interrupt::wait();
-    }
 }
 
 fn init_memory(dtb_pa: usize) -> MemoryLayout {
@@ -138,5 +145,59 @@ unsafe fn start_secondary_cpus() {
     // reuse boot stack as heap
     unsafe {
         memory::allocator::add_heap_ranges([memory::layout::kernel_boot_stack_range()]);
+    }
+}
+
+struct TaskState {
+    queue: SpinMutex<VecDeque<(TaskId, u64)>>,
+    message_sent: SpinMutexCondVar,
+    message_received: SpinMutexCondVar,
+}
+
+extern "C" fn tx_task(arg: *mut c_void) -> ! {
+    let int = interrupt::push_disabled();
+    let task_id = scheduler::current_task().unwrap().id();
+    drop(int);
+
+    let state: Arc<TaskState> = unsafe { Arc::from_raw(arg.cast()) };
+
+    let mut i = 0;
+    let mut queue = state.queue.lock();
+    loop {
+        if queue.len() < 4 {
+            queue.push_back((task_id, i));
+            state.message_sent.notify_one();
+            queue.unlock();
+            info!("send ({task_id}, {i})");
+            i += 1;
+            interrupt::wait();
+            queue = state.queue.lock();
+        } else {
+            info!("send waiting...");
+            queue = state.message_received.wait(queue);
+        }
+    }
+}
+
+extern "C" fn rx_task(arg: *mut c_void) -> ! {
+    let state: Arc<TaskState> = unsafe { Arc::from_raw(arg.cast()) };
+    let int = interrupt::push_disabled();
+    let task = scheduler::current_task().unwrap();
+    drop(int);
+
+    let mut queue = state.queue.lock();
+    loop {
+        if let Some((task_id, i)) = queue.pop_front() {
+            state.message_received.notify_all();
+            queue.unlock();
+            info!("receive ({task_id}, {i})");
+            let mut shared = task.shared.lock();
+            scheduler::yield_execution(&mut shared);
+            shared.unlock();
+            queue = state.queue.lock();
+        } else {
+            info!("receive waiting...");
+            queue = state.message_sent.wait(queue);
+        }
     }
 }

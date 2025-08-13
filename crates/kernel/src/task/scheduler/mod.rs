@@ -119,15 +119,17 @@ pub fn current_task() -> Option<Arc<Task>> {
 }
 
 #[track_caller]
-pub fn yield_execution(task: &Task) {
-    let mut shared = task.shared.lock();
+pub fn yield_execution(shared: &mut SpinMutexGuard<TaskSharedData>) {
     assert_eq!(shared.state, TaskState::Running);
     shared.state = TaskState::Runnable;
-    return_to_scheduler(&mut shared);
-    shared.unlock();
+    return_to_scheduler(shared);
 }
 
-fn return_to_scheduler(shared: &mut SpinMutexGuard<TaskSharedData>) {
+pub(super) fn return_to_scheduler(shared: &mut SpinMutexGuard<TaskSharedData>) {
+    assert!(Weak::ptr_eq(
+        &shared.task,
+        &Arc::downgrade(&current_task().unwrap())
+    ));
     assert_ne!(shared.state, TaskState::Running);
     if shared.state == TaskState::Runnable {
         push_task(Weak::clone(&shared.task));

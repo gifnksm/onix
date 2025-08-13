@@ -14,7 +14,7 @@ use snafu_utils::Location;
 use self::scheduler::Context;
 use crate::{
     memory::kernel_space::{self, KernelStack, KernelStackError},
-    sync::spinlock::SpinMutex,
+    sync::spinlock::{SpinMutex, SpinMutexGuard},
 };
 
 pub mod scheduler;
@@ -42,6 +42,7 @@ impl TaskId {
 pub enum TaskState {
     Runnable,
     Running,
+    Sleep,
 }
 
 #[derive(Debug)]
@@ -66,7 +67,7 @@ pub enum TaskCreateError {
 pub struct Task {
     id: TaskId,
     _kernel_stack: KernelStack,
-    shared: SpinMutex<TaskSharedData>,
+    pub shared: SpinMutex<TaskSharedData>,
 }
 
 impl Task {
@@ -106,4 +107,22 @@ pub fn spawn(
     );
     scheduler::push_task(Arc::downgrade(&task));
     Ok(task.id())
+}
+
+pub fn sleep(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
+    assert!(Weak::ptr_eq(
+        &shared.task,
+        &Arc::downgrade(&scheduler::current_task().unwrap())
+    ));
+    shared.state = TaskState::Sleep;
+
+    scheduler::return_to_scheduler(shared);
+    assert_eq!(shared.state, TaskState::Running);
+}
+
+pub fn wakeup(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
+    if shared.state == TaskState::Sleep {
+        shared.state = TaskState::Runnable;
+        scheduler::push_task(Weak::clone(&shared.task));
+    }
 }
