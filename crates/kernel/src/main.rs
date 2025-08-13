@@ -3,13 +3,19 @@
 #![no_main]
 
 use alloc::{collections::vec_deque::VecDeque, sync::Arc};
-use core::ffi::c_void;
+use core::{
+    ffi::c_void,
+    hint,
+    sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
+};
 
 use devicetree::parsed::Devicetree;
 use spin::Once;
 
 use self::{
     cpu::Cpuid,
+    interrupt::timer,
     memory::layout::MemoryLayout,
     sync::spinlock::{SpinMutex, SpinMutexCondVar},
     task::{TaskId, scheduler},
@@ -77,6 +83,8 @@ fn secondary_cpu_entry(cpuid: Cpuid) -> *mut u8 {
 }
 
 fn main() -> ! {
+    static INIT_COMPLETED: AtomicBool = AtomicBool::new(false);
+
     let primary_cpuid = PRIMARY_CPUID.get().unwrap();
     let is_primary = *primary_cpuid == cpu::current().id();
 
@@ -85,6 +93,11 @@ fn main() -> ! {
             start_secondary_cpus();
         }
         task::scheduler::init();
+        INIT_COMPLETED.store(true, Ordering::Release);
+    } else {
+        while !INIT_COMPLETED.load(Ordering::Acquire) {
+            hint::spin_loop();
+        }
     }
 
     interrupt::trap::apply();
