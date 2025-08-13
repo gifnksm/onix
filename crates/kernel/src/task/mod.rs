@@ -112,7 +112,7 @@ pub fn spawn(
 pub fn sleep(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
     assert!(Weak::ptr_eq(
         &shared.task,
-        &Arc::downgrade(&scheduler::current_task().unwrap())
+        &Arc::downgrade(&scheduler::current_task())
     ));
     shared.state = TaskState::Sleep;
 

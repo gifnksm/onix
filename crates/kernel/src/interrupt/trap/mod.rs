@@ -30,7 +30,7 @@ pub(super) extern "C" fn trap_kernel() {
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             super::timer::handle_interrupt();
-            if let Some(task) = scheduler::current_task() {
+            if let Some(task) = scheduler::try_current_task() {
                 let mut shared = task.shared.lock();
                 scheduler::yield_execution(&mut shared);
             }

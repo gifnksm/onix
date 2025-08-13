@@ -155,9 +155,7 @@ struct TaskState {
 }
 
 extern "C" fn tx_task(arg: *mut c_void) -> ! {
-    let int = interrupt::push_disabled();
-    let task_id = scheduler::current_task().unwrap().id();
-    drop(int);
+    let task_id = scheduler::current_task().id();
 
     let state: Arc<TaskState> = unsafe { Arc::from_raw(arg.cast()) };
 
@@ -181,9 +179,7 @@ extern "C" fn tx_task(arg: *mut c_void) -> ! {
 
 extern "C" fn rx_task(arg: *mut c_void) -> ! {
     let state: Arc<TaskState> = unsafe { Arc::from_raw(arg.cast()) };
-    let int = interrupt::push_disabled();
-    let task = scheduler::current_task().unwrap();
-    drop(int);
+    let task = scheduler::current_task();
 
     let mut queue = state.queue.lock();
     loop {

@@ -43,7 +43,7 @@ impl SchedulerState {
         *self.current_task.lock() = task;
     }
 
-    fn current_task(&self) -> Option<Arc<Task>> {
+    fn try_current_task(&self) -> Option<Arc<Task>> {
         assert!(!interrupt::is_enabled());
         self.current_task.lock().as_ref().map(Arc::clone)
     }
@@ -73,7 +73,7 @@ pub fn start() -> ! {
 
     let cpu = cpu::current();
     let sched_state = get_state();
-    assert!(sched_state.current_task().is_none());
+    assert!(sched_state.try_current_task().is_none());
 
     loop {
         interrupt::enable();
@@ -109,13 +109,19 @@ pub fn start() -> ! {
 }
 
 #[track_caller]
-pub fn push_task(task: Weak<Task>) {
+pub(super) fn push_task(task: Weak<Task>) {
     RUNNABLE_TASKS.lock().push_back(task);
 }
 
 #[track_caller]
-pub fn current_task() -> Option<Arc<Task>> {
-    try_get_state()?.current_task()
+pub fn try_current_task() -> Option<Arc<Task>> {
+    let _int_guard = interrupt::push_disabled();
+    try_get_state()?.try_current_task()
+}
+
+#[track_caller]
+pub fn current_task() -> Arc<Task> {
+    try_current_task().unwrap()
 }
 
 #[track_caller]
@@ -126,10 +132,7 @@ pub fn yield_execution(shared: &mut SpinMutexGuard<TaskSharedData>) {
 }
 
 pub(super) fn return_to_scheduler(shared: &mut SpinMutexGuard<TaskSharedData>) {
-    assert!(Weak::ptr_eq(
-        &shared.task,
-        &Arc::downgrade(&current_task().unwrap())
-    ));
+    assert!(Weak::ptr_eq(&shared.task, &Arc::downgrade(&current_task())));
     assert_ne!(shared.state, TaskState::Running);
     if shared.state == TaskState::Runnable {
         push_task(Weak::clone(&shared.task));
@@ -147,7 +150,7 @@ pub(super) fn return_to_scheduler(shared: &mut SpinMutexGuard<TaskSharedData>) {
 }
 
 fn task_entry(entry: extern "C" fn(*mut c_void) -> !, arg: *mut c_void) -> ! {
-    let task = current_task().unwrap();
+    let task = current_task();
     unsafe { task.shared.remember_locked() }.unlock();
     interrupt::enable();
     entry(arg);

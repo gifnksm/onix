@@ -55,7 +55,7 @@ pub fn log(level: LogLevel, message: fmt::Arguments) {
 
     let now = TimeFormat(timer::try_now());
     let level = LevelFormat(level);
-    let task = TaskFormat(scheduler::current_task());
+    let task = TaskFormat(scheduler::try_current_task());
     let cpu = CpuFormat(cpu::try_current());
     let location = LocationFormat(Location::caller());
     println!("{now} [{task}@{cpu}] {level} {message} {location}");

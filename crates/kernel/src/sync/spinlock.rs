@@ -164,11 +164,7 @@ impl SpinMutexCondVar {
 
     pub fn wait<'a, T>(&self, mut guard: SpinMutexGuard<'a, T>) -> SpinMutexGuard<'a, T> {
         let start_generation = self.generation.load(Ordering::Relaxed);
-
-        let int = interrupt::push_disabled();
-        let task = scheduler::current_task().unwrap();
-        drop(int);
-
+        let task = scheduler::current_task();
         loop {
             let mut waiters = self.waiters.lock();
             waiters.push_back(Arc::downgrade(&task));
