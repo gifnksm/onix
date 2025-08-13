@@ -1,11 +1,14 @@
 use alloc::sync::Arc;
-use core::{fmt, panic::Location, time::Duration};
+use core::{fmt, panic::Location};
 
 use ansi_term::{Color, WithFg};
 
 use crate::{
     cpu::{self, Cpu},
-    interrupt::{self, timer},
+    interrupt::{
+        self,
+        timer::{self, Instant},
+    },
     task::{Task, scheduler},
 };
 
@@ -72,13 +75,16 @@ pub enum LogLevel {
 }
 
 #[derive(Debug)]
-struct TimeFormat(Option<Duration>);
+struct TimeFormat(Option<Instant>);
 
 impl fmt::Display for TimeFormat {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(dur) => write!(f, "{}.{:09}", dur.as_secs(), dur.subsec_nanos()),
-            None => write!(f, "{}.{:09}", 0, 0),
+            Some(now) => {
+                let dur = now.duration_since_epoc();
+                write!(f, "{}.{:09}", dur.as_secs(), dur.subsec_nanos())
+            }
+            None => write!(f, "{0}.{1:09}", 0, 0),
         }
     }
 }

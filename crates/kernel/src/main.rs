@@ -15,7 +15,7 @@ use spin::Once;
 
 use self::{
     cpu::Cpuid,
-    interrupt::timer,
+    interrupt::timer::{self, Instant},
     memory::layout::MemoryLayout,
     sync::spinlock::{SpinMutex, SpinMutexCondVar},
     task::{TaskId, scheduler},
@@ -92,6 +92,8 @@ fn main() -> ! {
         unsafe {
             start_secondary_cpus();
         }
+
+        interrupt::timer::init();
         task::scheduler::init();
         INIT_COMPLETED.store(true, Ordering::Release);
     } else {
@@ -162,7 +164,7 @@ unsafe fn start_secondary_cpus() {
 }
 
 struct TaskState {
-    queue: SpinMutex<VecDeque<(TaskId, u64)>>,
+    queue: SpinMutex<VecDeque<(TaskId, u64, Instant)>>,
     message_sent: SpinMutexCondVar,
     message_received: SpinMutexCondVar,
 }
@@ -176,15 +178,15 @@ extern "C" fn tx_task(arg: *mut c_void) -> ! {
     let mut queue = state.queue.lock();
     loop {
         if queue.len() < 4 {
-            queue.push_back((task_id, i));
+            queue.push_back((task_id, i, Instant::now()));
             state.message_sent.notify_one();
             queue.unlock();
-            info!("send ({task_id}, {i})");
+            info!("sent ({task_id}, {i})");
             i += 1;
-            interrupt::wait();
+            timer::sleep(Duration::from_millis(50));
             queue = state.queue.lock();
         } else {
-            info!("send waiting...");
+            info!("sender waiting...");
             queue = state.message_received.wait(queue);
         }
     }
@@ -196,16 +198,16 @@ extern "C" fn rx_task(arg: *mut c_void) -> ! {
 
     let mut queue = state.queue.lock();
     loop {
-        if let Some((task_id, i)) = queue.pop_front() {
+        if let Some((task_id, i, time)) = queue.pop_front() {
             state.message_received.notify_all();
             queue.unlock();
-            info!("receive ({task_id}, {i})");
+            info!("received ({task_id}, {i}, {:?})", time.elapsed());
             let mut shared = task.shared.lock();
             scheduler::yield_execution(&mut shared);
             shared.unlock();
             queue = state.queue.lock();
         } else {
-            info!("receive waiting...");
+            info!("receiver waiting...");
             queue = state.message_sent.wait(queue);
         }
     }

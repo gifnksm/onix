@@ -7,8 +7,6 @@ use riscv::{
     },
 };
 
-use crate::task::scheduler;
-
 mod imp;
 
 pub fn apply() {
@@ -30,18 +28,14 @@ pub(super) extern "C" fn trap_kernel() {
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             super::timer::handle_interrupt();
-            if let Some(task) = scheduler::try_current_task() {
-                let mut shared = task.shared.lock();
-                scheduler::yield_execution(&mut shared);
-            }
         }
         Trap::Interrupt(int) => {
             panic!("unexpected kernel interrupt {int:#?}, sepc={sepc:#x}, stval={stval:#x}");
         }
     }
 
-    // yield_execution may transition the current task to other CPUs,
-    // so restore trap registers.
+    // yield_execution (called in timer::handle_interrupt()) may transition the
+    // current task to other CPUs, so restore trap registers.
     unsafe {
         sepc::write(sepc);
     }

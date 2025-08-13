@@ -174,7 +174,7 @@ impl SpinMutexCondVar {
             let mutex = guard.mutex;
             guard.unlock();
 
-            task::sleep(&mut shared);
+            task::pause(&mut shared);
 
             guard = mutex.lock();
             let current_generation = self.generation.load(Ordering::Acquire);
@@ -193,7 +193,7 @@ impl SpinMutexCondVar {
                 continue;
             };
             let mut shared = task.shared.lock();
-            task::wakeup(&mut shared);
+            task::resume(&mut shared);
         }
     }
 
@@ -204,7 +204,7 @@ impl SpinMutexCondVar {
                 continue;
             };
             let mut shared = task.shared.lock();
-            task::wakeup(&mut shared);
+            task::resume(&mut shared);
             break;
         }
     }

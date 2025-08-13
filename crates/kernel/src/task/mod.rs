@@ -31,6 +31,8 @@ impl fmt::Display for TaskId {
 }
 
 impl TaskId {
+    pub const INVALID: Self = Self(u64::MAX);
+
     pub fn new() -> Self {
         static NEXT_ID: AtomicU64 = AtomicU64::new(1);
         let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
@@ -109,7 +111,7 @@ pub fn spawn(
     Ok(task.id())
 }
 
-pub fn sleep(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
+pub fn pause(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
     assert!(Weak::ptr_eq(
         &shared.task,
         &Arc::downgrade(&scheduler::current_task())
@@ -120,7 +122,7 @@ pub fn sleep(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
     assert_eq!(shared.state, TaskState::Running);
 }
 
-pub fn wakeup(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
+pub fn resume(shared: &mut SpinMutexGuard<'_, TaskSharedData>) {
     if shared.state == TaskState::Sleep {
         shared.state = TaskState::Runnable;
         scheduler::push_task(Weak::clone(&shared.task));
