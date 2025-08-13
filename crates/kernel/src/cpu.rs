@@ -205,6 +205,7 @@ pub fn set_current_cpuid(cpuid: Cpuid) {
     }
 }
 
+#[track_caller]
 pub fn try_current_index() -> Option<usize> {
     assert!(!interrupt::is_enabled());
 
@@ -215,22 +216,27 @@ pub fn try_current_index() -> Option<usize> {
     (index != INVALID_CPU_INDEX).then_some(index)
 }
 
+#[track_caller]
 pub fn current_index() -> usize {
     try_current_index().unwrap()
 }
 
+#[track_caller]
 pub fn try_current() -> Option<&'static Cpu> {
     CPUS.get()?.get(try_current_index()?)
 }
 
+#[track_caller]
 pub fn current() -> &'static Cpu {
     try_current().unwrap()
 }
 
+#[track_caller]
 pub fn len() -> usize {
     CPUS.get().unwrap().len()
 }
 
+#[track_caller]
 pub fn get_all() -> &'static [Cpu] {
     CPUS.get().unwrap()
 }

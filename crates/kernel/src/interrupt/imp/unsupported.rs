@@ -18,3 +18,15 @@ pub fn is_enabled() -> bool {
 pub fn restore(_state: State) {
     unimplemented!("unsupported architecture");
 }
+
+pub fn enable() {
+    unimplemented!("unsupported architecture");
+}
+
+pub fn disable() {
+    unimplemented!("unsupported architecture");
+}
+
+pub fn wait() {
+    unimplemented!("unsupported architecture");
+}

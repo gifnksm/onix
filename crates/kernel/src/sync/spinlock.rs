@@ -55,7 +55,7 @@ impl<T> SpinMutex<T> {
 
     #[track_caller]
     pub fn lock(&self) -> SpinMutexGuard<'_, T> {
-        let interrupt_guard = interrupt::disable();
+        let interrupt_guard = interrupt::push_disabled();
 
         while self.locked.swap(true, Ordering::Acquire) {
             hint::spin_loop();
@@ -73,7 +73,7 @@ impl<T> SpinMutex<T> {
 
     #[track_caller]
     pub fn try_lock(&self) -> Option<SpinMutexGuard<'_, T>> {
-        let interrupt_guard = interrupt::disable();
+        let interrupt_guard = interrupt::push_disabled();
 
         if self.locked.swap(true, Ordering::Acquire) {
             return None;

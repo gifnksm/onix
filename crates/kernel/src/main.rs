@@ -93,13 +93,13 @@ fn main() -> ! {
 }
 
 extern "C" fn task_entry() -> ! {
-    let int = interrupt::disable();
+    let int = interrupt::push_disabled();
     let task = task::scheduler::current_task().unwrap();
     drop(int);
 
     loop {
         info!("hello from task {}", task.id());
-        riscv::asm::wfi();
+        interrupt::wait();
     }
 }
 

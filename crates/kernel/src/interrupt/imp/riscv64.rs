@@ -42,3 +42,17 @@ pub fn restore(state: State) {
         }
     }
 }
+
+pub fn enable() {
+    unsafe {
+        riscv::interrupt::enable();
+    }
+}
+
+pub fn disable() {
+    riscv::interrupt::disable();
+}
+
+pub fn wait() {
+    riscv::asm::wfi();
+}

@@ -51,7 +51,7 @@ macro_rules! error {
 
 #[track_caller]
 pub fn log(level: LogLevel, message: fmt::Arguments) {
-    let _interrupt_guard = interrupt::disable();
+    let _interrupt_guard = interrupt::push_disabled();
 
     let now = TimeFormat(timer::try_now());
     let level = LevelFormat(level);

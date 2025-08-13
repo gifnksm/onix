@@ -25,7 +25,25 @@ pub fn init(boot_cpuid: Cpuid) {
     CPU_STATE.call_once(|| iter::repeat_with(CpuState::new).take(cpu::len()).collect());
 }
 
-pub fn disable() -> InterruptGuard {
+#[track_caller]
+pub fn disable() {
+    imp::disable();
+    assert_eq!(disabled_depth(), 0);
+}
+
+#[track_caller]
+pub fn enable() {
+    assert_eq!(disabled_depth(), 0);
+    imp::enable();
+}
+
+#[track_caller]
+pub fn wait() {
+    imp::wait();
+}
+
+#[track_caller]
+pub fn push_disabled() -> InterruptGuard {
     let state = imp::read_and_disable();
     let cpu_state = cpu_state();
     cpu_state.push_state(state);
@@ -34,6 +52,7 @@ pub fn disable() -> InterruptGuard {
     }
 }
 
+#[track_caller]
 pub fn disabled_depth() -> usize {
     cpu_state().disabled_depth()
 }
@@ -65,6 +84,7 @@ impl Drop for InterruptGuard {
     }
 }
 
+#[track_caller]
 fn cpu_state() -> &'static CpuState {
     if !CPU_STATE.is_completed() {
         return &BOOT_CPU_STATE;
