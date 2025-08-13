@@ -3,7 +3,7 @@ use alloc::{
     sync::{Arc, Weak},
     vec::Vec,
 };
-use core::{cell::UnsafeCell, iter};
+use core::{cell::UnsafeCell, ffi::c_void, iter};
 
 use dataview::PodMethods as _;
 use spin::once::Once;
@@ -142,4 +142,11 @@ fn return_to_scheduler(shared: &mut SpinMutexGuard<TaskSharedData>) {
         context::switch(&raw mut shared.sched_context, sched_state.context.get());
     }
     int_state.restore();
+}
+
+fn task_entry(entry: extern "C" fn(*mut c_void) -> !, arg: *mut c_void) -> ! {
+    let task = current_task().unwrap();
+    unsafe { task.shared.remember_locked() }.unlock();
+    interrupt::enable();
+    entry(arg);
 }

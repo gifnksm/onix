@@ -3,6 +3,7 @@ use alloc::{
     sync::{Arc, Weak},
 };
 use core::{
+    ffi::c_void,
     fmt,
     sync::atomic::{AtomicU64, Ordering},
 };
@@ -69,9 +70,12 @@ pub struct Task {
 }
 
 impl Task {
-    fn new(entry: extern "C" fn() -> !) -> Result<Arc<Self>, TaskCreateError> {
+    fn new(
+        entry: extern "C" fn(*mut c_void) -> !,
+        arg: *mut c_void,
+    ) -> Result<Arc<Self>, TaskCreateError> {
         let kernel_stack = kernel_space::allocate_kernel_stack().context(KernelStackSnafu)?;
-        let sched_context = Context::new(entry, &kernel_stack);
+        let sched_context = Context::new(&kernel_stack, entry, arg);
         let task = Arc::new_cyclic(|task| Self {
             id: TaskId::new(),
             _kernel_stack: kernel_stack,
@@ -89,8 +93,11 @@ impl Task {
     }
 }
 
-pub fn spawn(entry: extern "C" fn() -> !) -> Result<TaskId, TaskCreateError> {
-    let task = Task::new(entry)?;
+pub fn spawn(
+    entry: extern "C" fn(*mut c_void) -> !,
+    arg: *mut c_void,
+) -> Result<TaskId, TaskCreateError> {
+    let task = Task::new(entry, arg)?;
     assert!(
         TASK_MAP
             .lock()

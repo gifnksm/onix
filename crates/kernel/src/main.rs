@@ -2,6 +2,8 @@
 #![no_std]
 #![no_main]
 
+use core::{ffi::c_void, ptr};
+
 use devicetree::parsed::Devicetree;
 use spin::Once;
 
@@ -84,15 +86,15 @@ fn main() -> ! {
 
     info!("CPU initialized");
 
-    let tid = task::spawn(task_entry).unwrap();
+    let tid = task::spawn(task_entry, ptr::null_mut()).unwrap();
     info!("Task {tid} spawned");
-    let tid = task::spawn(task_entry).unwrap();
+    let tid = task::spawn(task_entry, ptr::null_mut()).unwrap();
     info!("Task {tid} spawned");
 
     task::scheduler::start();
 }
 
-extern "C" fn task_entry() -> ! {
+extern "C" fn task_entry(_arg: *mut c_void) -> ! {
     let int = interrupt::push_disabled();
     let task = task::scheduler::current_task().unwrap();
     drop(int);

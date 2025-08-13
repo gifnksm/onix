@@ -1,8 +1,8 @@
-use core::{arch::naked_asm, mem::offset_of};
+use core::{arch::naked_asm, ffi::c_void, mem::offset_of};
 
 use dataview::{Pod, PodMethods as _};
 
-use crate::{interrupt, memory::kernel_space::KernelStack};
+use crate::memory::kernel_space::KernelStack;
 
 #[derive(Debug, Clone, Copy, Pod)]
 #[repr(C)]
@@ -25,11 +25,16 @@ pub struct Context {
 }
 
 impl Context {
-    pub(crate) fn new(entry: extern "C" fn() -> !, stack: &KernelStack) -> Self {
+    pub(crate) fn new(
+        stack: &KernelStack,
+        entry: extern "C" fn(*mut c_void) -> !,
+        arg: *mut c_void,
+    ) -> Self {
         let mut context = Self::zeroed();
         context.ra = task_entry as usize;
         context.sp = stack.top();
         context.s1 = entry as usize;
+        context.s2 = arg as usize;
         context
     }
 }
@@ -88,15 +93,12 @@ pub(super) unsafe extern "C" fn switch(old: *mut Context, new: *const Context) {
 unsafe extern "C" fn task_entry() -> ! {
     naked_asm!(
         "mv a0, s1",
+        "mv a1, s2",
         "j {task_entry_secondary}",
         task_entry_secondary = sym task_entry_secondary,
     );
 }
 
-extern "C" fn task_entry_secondary(entry: extern "C" fn() -> !) -> ! {
-    let task = super::current_task().unwrap();
-    unsafe { task.shared.remember_locked() }.unlock();
-    assert_eq!(interrupt::disabled_depth(), 0);
-    interrupt::enable();
-    entry();
+extern "C" fn task_entry_secondary(entry: extern "C" fn(*mut c_void) -> !, arg: *mut c_void) -> ! {
+    super::task_entry(entry, arg);
 }
