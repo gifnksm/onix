@@ -1,12 +1,8 @@
-use alloc::vec::Vec;
 use core::{
     cell::UnsafeCell,
-    iter,
     marker::PhantomData,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
 };
-
-use spin::Once;
 
 use crate::cpu::{self, Cpuid};
 
@@ -15,14 +11,19 @@ pub mod timer;
 pub mod trap;
 
 static BOOT_CPU_STATE: CpuState = CpuState::new();
-static CPU_STATE: Once<Vec<CpuState>> = Once::new();
+static BOOT_COMPLETED: AtomicBool = AtomicBool::new(false);
+
+cpu_local! {
+    static CPU_STATE:  CpuState = CpuState::new();
+}
 
 pub fn init(boot_cpuid: Cpuid) {
+    assert!(CPU_STATE.try_get().is_some());
     assert!(!is_enabled());
     assert_eq!(BOOT_CPU_STATE.disabled_depth(), 0);
+    BOOT_COMPLETED.store(true, Ordering::Release);
     let cpu = cpu::current();
     assert_eq!(boot_cpuid, cpu.id());
-    CPU_STATE.call_once(|| iter::repeat_with(CpuState::new).take(cpu::len()).collect());
 }
 
 #[track_caller]
@@ -86,10 +87,10 @@ impl Drop for InterruptGuard {
 
 #[track_caller]
 fn cpu_state() -> &'static CpuState {
-    if !CPU_STATE.is_completed() {
+    if !BOOT_COMPLETED.load(Ordering::Acquire) {
         return &BOOT_CPU_STATE;
     }
-    &CPU_STATE.get().unwrap()[cpu::current_index()]
+    CPU_STATE.get()
 }
 
 #[derive(Debug)]

@@ -1,12 +1,8 @@
 use alloc::{
     collections::vec_deque::VecDeque,
     sync::{Arc, Weak},
-    vec::Vec,
 };
-use core::{cell::UnsafeCell, ffi::c_void, iter};
-
-use dataview::PodMethods as _;
-use spin::once::Once;
+use core::{cell::UnsafeCell, ffi::c_void};
 
 pub use self::context::Context;
 use super::{Task, TaskSharedData};
@@ -20,7 +16,9 @@ mod context;
 
 static RUNNABLE_TASKS: SpinMutex<VecDeque<Weak<Task>>> = SpinMutex::new(VecDeque::new());
 
-static SCHEDULER_STATE: Once<Vec<SchedulerState>> = Once::new();
+cpu_local! {
+    static SCHEDULER_STATE: SchedulerState = SchedulerState::new();
+}
 
 #[derive(Debug)]
 struct SchedulerState {
@@ -31,7 +29,7 @@ struct SchedulerState {
 unsafe impl Sync for SchedulerState {}
 
 impl SchedulerState {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             context: UnsafeCell::new(Context::zeroed()),
             current_task: SpinMutex::new(None),
@@ -51,20 +49,12 @@ impl SchedulerState {
 
 #[track_caller]
 fn try_get_state() -> Option<&'static SchedulerState> {
-    let cpu = cpu::try_current()?;
-    SCHEDULER_STATE.get()?.get(cpu.index())
+    SCHEDULER_STATE.try_get()
 }
 
 #[track_caller]
 fn get_state() -> &'static SchedulerState {
     try_get_state().unwrap()
-}
-
-pub fn init() {
-    let states = iter::repeat_with(SchedulerState::new)
-        .take(cpu::len())
-        .collect::<Vec<_>>();
-    SCHEDULER_STATE.call_once(|| states);
 }
 
 pub fn start() -> ! {

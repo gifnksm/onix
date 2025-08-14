@@ -1,12 +1,10 @@
 use alloc::{
     collections::binary_heap::BinaryHeap,
     sync::{Arc, Weak},
-    vec::Vec,
 };
 use core::{arch::asm, cmp, time::Duration};
 
 use riscv::register::scounteren;
-use spin::Once;
 
 pub use self::instant::Instant;
 use super::super::cpu;
@@ -19,12 +17,21 @@ mod instant;
 
 const SCHEDULER_INTERVAL: Duration = Duration::from_millis(100);
 
-static TIMER_QUEUE: Once<Vec<TimerState>> = Once::new();
+cpu_local! {
+    static TIMER_QUEUE: TimerState = TimerState::new();
+}
 
 #[derive(Debug)]
 struct TimerState {
     queue: SpinMutex<BinaryHeap<Event>>,
-    cpu_frequency: u64,
+}
+
+impl TimerState {
+    const fn new() -> Self {
+        Self {
+            queue: SpinMutex::new(BinaryHeap::new()),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -71,17 +78,6 @@ impl PartialEq for Event {
 
 impl Eq for Event {}
 
-pub fn init() {
-    let queues = cpu::get_all()
-        .iter()
-        .map(|cpu| TimerState {
-            queue: SpinMutex::new(BinaryHeap::new()),
-            cpu_frequency: cpu.timer_frequency(),
-        })
-        .collect();
-    TIMER_QUEUE.call_once(|| queues);
-}
-
 pub fn start() {
     assert!(!super::is_enabled());
 
@@ -91,7 +87,8 @@ pub fn start() {
     }
 
     let cpu = cpu::current();
-    let state = &TIMER_QUEUE.get().unwrap()[cpu.index()];
+    let cpu_frequency = cpu.timer_frequency();
+    let state = &TIMER_QUEUE.get();
     let now = now();
 
     let mut queue = state.queue.lock();
@@ -99,13 +96,14 @@ pub fn start() {
         deadline: now,
         kind: EventKind::Tick,
     });
-    update_timer(&queue, state.cpu_frequency);
+    update_timer(&queue, cpu_frequency);
 }
 
 pub(super) fn handle_interrupt() {
     assert!(!super::is_enabled());
     let cpu = cpu::current();
-    let state = &TIMER_QUEUE.get().unwrap()[cpu.index()];
+    let cpu_frequency = cpu.timer_frequency();
+    let state = &TIMER_QUEUE.get();
 
     let now = now();
 
@@ -138,7 +136,7 @@ pub(super) fn handle_interrupt() {
         }
     }
 
-    update_timer(&queue, state.cpu_frequency);
+    update_timer(&queue, cpu_frequency);
     queue.unlock();
 
     if do_sched && let Some(task) = scheduler::try_current_task() {
@@ -182,7 +180,7 @@ pub fn sleep(dur: Duration) {
 
     let task = scheduler::current_task();
     let deadline = now() + dur;
-    let state = &TIMER_QUEUE.get().unwrap()[cpu.index()];
+    let state = &TIMER_QUEUE.get();
     let mut queue = state.queue.lock();
     queue.push(Event {
         deadline,

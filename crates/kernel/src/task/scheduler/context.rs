@@ -1,6 +1,6 @@
 use core::{arch::naked_asm, ffi::c_void, mem::offset_of};
 
-use dataview::{Pod, PodMethods as _};
+use dataview::Pod;
 
 use crate::memory::kernel_space::KernelStack;
 
@@ -36,6 +36,25 @@ impl Context {
         context.s1 = entry as usize;
         context.s2 = arg as usize;
         context
+    }
+
+    pub const fn zeroed() -> Self {
+        Self {
+            ra: 0,
+            sp: 0,
+            s0: 0,
+            s1: 0,
+            s2: 0,
+            s3: 0,
+            s4: 0,
+            s5: 0,
+            s6: 0,
+            s7: 0,
+            s8: 0,
+            s9: 0,
+            s10: 0,
+            s11: 0,
+        }
     }
 }
 

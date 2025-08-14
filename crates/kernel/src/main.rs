@@ -27,6 +27,8 @@ extern crate alloc;
 mod console;
 #[macro_use]
 mod log;
+#[macro_use]
+mod cpu_local;
 
 mod boot;
 mod cpu;
@@ -61,6 +63,8 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     let memory_layout = init_memory(dtb_pa);
     let dtree = DEVICETREE.get().unwrap();
     cpu::init(dtree).unwrap();
+    cpu_local::init();
+    cpu_local::apply(cpuid);
     cpu::set_current_cpuid(cpuid);
     interrupt::init(cpuid);
     memory::kernel_space::init(&memory_layout).unwrap();
@@ -73,6 +77,7 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
 }
 
 fn secondary_cpu_entry(cpuid: Cpuid) -> *mut u8 {
+    cpu_local::apply(cpuid);
     cpu::set_current_cpuid(cpuid);
     memory::kernel_space::apply();
 
@@ -92,9 +97,6 @@ fn main() -> ! {
         unsafe {
             start_secondary_cpus();
         }
-
-        interrupt::timer::init();
-        task::scheduler::init();
         INIT_COMPLETED.store(true, Ordering::Release);
     } else {
         while !INIT_COMPLETED.load(Ordering::Acquire) {

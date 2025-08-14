@@ -3,10 +3,7 @@ use core::arch::naked_asm;
 use sbi::hart_state_management;
 
 use super::super::BOOT_STACK_TOP;
-use crate::cpu::{Cpuid, INVALID_CPU_INDEX};
-
-// Ensure that INVALID_CPU_INDEX is -1 in signed context
-const _: () = assert!(INVALID_CPU_INDEX.cast_signed() == -1_isize);
+use crate::cpu::Cpuid;
 
 // OpenSBI passes the information via the following registers of RISC-V CPU:
 //
@@ -19,8 +16,7 @@ const _: () = assert!(INVALID_CPU_INDEX.cast_signed() == -1_isize);
 #[unsafe(export_name = "entry")]
 unsafe extern "C" fn entry(hartid: usize, dtb_pa: usize) -> ! {
     naked_asm!(
-        // set invalid cpu index to indicate that the register is not set
-        "add tp, zero, -1",
+        "mv tp, zero",
 
         // call the entry function on boot stack
         "la sp, {boot_stack_top}",
@@ -45,8 +41,7 @@ pub unsafe fn start_secondary_cpu(cpuid: Cpuid) {
 #[unsafe(naked)]
 unsafe extern "C" fn secondary_cpu_entry(cpuid: usize, opaque: usize) -> ! {
     naked_asm!(
-        // set invalid cpu index to indicate that the register is not set
-        "add tp, zero, -1",
+        "mv tp, zero",
 
         // call the entry function on boot stack
         "la sp, {boot_stack_top}",

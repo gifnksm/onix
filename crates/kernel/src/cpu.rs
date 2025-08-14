@@ -1,5 +1,5 @@
 use alloc::{slice, vec::Vec};
-use core::{arch::asm, fmt, iter::Peekable};
+use core::{fmt, iter::Peekable};
 
 use devicetree::{
     common::property::{ParsePropertyValueError, Reg},
@@ -10,9 +10,9 @@ use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 use spin::Once;
 
-use crate::interrupt;
-
-pub const INVALID_CPU_INDEX: usize = usize::MAX;
+cpu_local! {
+    static CURRENT_CPU: Once<&'static Cpu> = Once::new();
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -37,7 +37,6 @@ impl Cpuid {
 #[derive(Debug)]
 pub struct Cpu {
     id: Cpuid,
-    index: usize,
     timer_frequency: u64,
 }
 
@@ -49,20 +48,16 @@ impl Cpu {
         self.id
     }
 
-    pub(crate) fn index(&self) -> usize {
-        self.index
-    }
-
     pub fn timer_frequency(&self) -> u64 {
         self.timer_frequency
     }
 
     pub fn is_current(&self) -> bool {
-        try_current_index() == Some(self.index)
+        try_current().is_some_and(|cpu| cpu.id() == self.id)
     }
 }
 
-static CPUS: Once<Vec<Cpu>> = Once::new();
+static ALL_CPUS: Once<Vec<Cpu>> = Once::new();
 
 #[derive(Debug, Snafu)]
 pub enum CpuInitError {
@@ -176,54 +171,31 @@ pub fn init(dtree: &Devicetree) -> Result<(), CpuInitError> {
 
         cpus.push(Cpu {
             id,
-            index: usize::MAX,
             timer_frequency,
         });
     }
 
-    // sort cpus by cpuid and update index
+    // sort cpus by cpuid
     cpus.sort_by(|a, b| Cpuid::cmp(&a.id, &b.id));
-    for (index, cpu) in cpus.iter_mut().enumerate() {
-        cpu.index = index;
-    }
 
-    CPUS.call_once(|| cpus);
+    ALL_CPUS.call_once(|| cpus);
 
     Ok(())
 }
 
 pub fn set_current_cpuid(cpuid: Cpuid) {
-    assert!(
-        try_current_index().is_none(),
-        "current CPU ID is already set"
-    );
-
-    let cpus = CPUS.get().unwrap();
-    let cpu = cpus.iter().find(|cpu| cpu.id == cpuid).unwrap();
-    unsafe {
-        asm!("mv tp, {}", in(reg) cpu.index);
-    }
-}
-
-#[track_caller]
-pub fn try_current_index() -> Option<usize> {
-    assert!(!interrupt::is_enabled());
-
-    let index: usize;
-    unsafe {
-        asm!("mv {}, tp", out(reg) index);
-    }
-    (index != INVALID_CPU_INDEX).then_some(index)
-}
-
-#[track_caller]
-pub fn current_index() -> usize {
-    try_current_index().unwrap()
+    let cpu = ALL_CPUS
+        .get()
+        .unwrap()
+        .iter()
+        .find(|cpu| cpu.id() == cpuid)
+        .unwrap();
+    CURRENT_CPU.get().call_once(|| cpu);
 }
 
 #[track_caller]
 pub fn try_current() -> Option<&'static Cpu> {
-    CPUS.get()?.get(try_current_index()?)
+    CURRENT_CPU.try_get()?.get().copied()
 }
 
 #[track_caller]
@@ -232,13 +204,8 @@ pub fn current() -> &'static Cpu {
 }
 
 #[track_caller]
-pub fn len() -> usize {
-    CPUS.get().unwrap().len()
-}
-
-#[track_caller]
 pub fn get_all() -> &'static [Cpu] {
-    CPUS.get().unwrap()
+    ALL_CPUS.get().unwrap()
 }
 
 #[derive(Clone, Copy)]
@@ -293,7 +260,7 @@ impl Iterator for RemoteCpuMaskIter {
 
 pub fn remote_cpu_masks() -> RemoteCpuMaskIter {
     let current_cpuid = current().id();
-    let cpus = CPUS.get().unwrap().iter().peekable();
+    let cpus = ALL_CPUS.get().unwrap().iter().peekable();
     RemoteCpuMaskIter {
         current_cpuid,
         cpus,
