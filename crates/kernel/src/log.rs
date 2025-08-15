@@ -54,13 +54,14 @@ macro_rules! error {
 
 #[track_caller]
 pub fn log(level: LogLevel, message: fmt::Arguments) {
-    let _interrupt_guard = interrupt::push_disabled();
-
+    let interrupt_guard = interrupt::push_disabled();
     let now = TimeFormat(timer::try_now());
     let level = LevelFormat(level);
     let task = TaskFormat(scheduler::try_current_task());
     let cpu = CpuFormat(cpu::try_current());
     let location = LocationFormat(Location::caller());
+    interrupt_guard.pop();
+
     println!("{now} [{task}@{cpu}] {level} {message} {location}");
 }
 

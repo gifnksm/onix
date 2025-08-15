@@ -85,6 +85,12 @@ impl Drop for InterruptGuard {
     }
 }
 
+impl InterruptGuard {
+    pub fn pop(self) {
+        let _ = self; // drop
+    }
+}
+
 #[track_caller]
 fn cpu_state() -> &'static CpuState {
     if !BOOT_COMPLETED.load(Ordering::Acquire) {

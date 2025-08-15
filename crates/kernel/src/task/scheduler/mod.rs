@@ -105,7 +105,7 @@ pub(super) fn push_task(task: Weak<Task>) {
 
 #[track_caller]
 pub fn try_current_task() -> Option<Arc<Task>> {
-    let _int_guard = interrupt::push_disabled();
+    let _interrupt_guard = interrupt::push_disabled();
     try_get_state()?.try_current_task()
 }
 

@@ -157,15 +157,15 @@ fn update_timer(queue: &BinaryHeap<Event>, cpu_frequency: u64) {
 }
 
 pub fn try_now() -> Option<Instant> {
-    let int_guard = super::push_disabled();
+    let interrupt_guard = super::push_disabled();
     let timer_frequency = cpu::try_current()?.timer_frequency();
 
     let timer_ticks: u64;
     unsafe {
         asm!("csrr {}, time", out(reg) timer_ticks);
     }
-    drop(int_guard);
 
+    interrupt_guard.pop();
     Some(Instant::from_timer_ticks(timer_ticks, timer_frequency))
 }
 
@@ -175,7 +175,7 @@ pub fn now() -> Instant {
 }
 
 pub fn sleep(dur: Duration) {
-    let int_guard = super::push_disabled();
+    let interrupt_guard = super::push_disabled();
     let cpu = cpu::current();
 
     let task = scheduler::current_task();
@@ -188,7 +188,7 @@ pub fn sleep(dur: Duration) {
     });
     update_timer(&queue, cpu.timer_frequency());
     queue.unlock();
-    drop(int_guard);
+    interrupt_guard.pop();
 
     loop {
         let mut shared = task.shared.lock();
