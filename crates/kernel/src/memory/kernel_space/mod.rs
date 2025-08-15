@@ -128,14 +128,14 @@ pub enum KernelStackError {
     PageTable {
         #[snafu(implicit)]
         location: Location,
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: PageTableError,
     },
     #[snafu(display("remote sfence.vma failed: {source}"))]
     RemoteSfenceVma {
         #[snafu(implicit)]
         location: Location,
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: SbiError,
     },
 }

@@ -45,7 +45,7 @@ pub enum StructLexerError {
     #[snafu(display("invalid string in structure block: {source} at offset {offset}"))]
     InvalidStringInStructBlock {
         offset: usize,
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: Utf8Error,
         #[snafu(implicit)]
         location: Location,
@@ -53,7 +53,7 @@ pub enum StructLexerError {
     #[snafu(display("invalid string in strings block: {source} at offset {offset}"))]
     InvalidStringInStringsBlock {
         offset: usize,
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: Utf8Error,
         #[snafu(implicit)]
         location: Location,

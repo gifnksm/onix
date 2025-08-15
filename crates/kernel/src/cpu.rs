@@ -95,7 +95,7 @@ pub enum PropertyError {
         name: &'static str,
         #[snafu(implicit)]
         location: Location,
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: ParsePropertyValueError,
     },
     #[snafu(display(

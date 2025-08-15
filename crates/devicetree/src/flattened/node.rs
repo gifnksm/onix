@@ -53,7 +53,7 @@ use crate::{common::property::Property, parsed};
 pub enum ParseStructError {
     #[snafu(display("invalid struct token: {source}"))]
     Lexer {
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: StructLexerError,
         #[snafu(implicit)]
         location: Location,

@@ -60,7 +60,7 @@ pub enum TaskCreateError {
     KernelStack {
         #[snafu(implicit)]
         location: Location,
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: KernelStackError,
     },
 }

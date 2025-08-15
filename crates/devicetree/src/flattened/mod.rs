@@ -41,7 +41,7 @@ pub enum CreateError {
     },
     #[snafu(display("invalid device tree header: {source}"))]
     InvalidHeader {
-        #[snafu(implicit)]
+        #[snafu(source)]
         source: HeaderValidationError,
         #[snafu(implicit)]
         location: Location,
