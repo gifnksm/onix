@@ -58,6 +58,7 @@ fn get_state() -> &'static SchedulerState {
 }
 
 pub fn start() -> ! {
+    assert!(!interrupt::in_interrupt_handler());
     assert!(!interrupt::is_enabled());
     assert_eq!(interrupt::disabled_depth(), 0);
 
@@ -140,6 +141,7 @@ pub(super) fn return_to_scheduler(shared: &mut SpinMutexGuard<TaskSharedData>) {
 }
 
 fn task_entry(entry: extern "C" fn(*mut c_void) -> !, arg: *mut c_void) -> ! {
+    assert!(!interrupt::in_interrupt_handler());
     let task = current_task();
     unsafe { task.shared.remember_locked() }.unlock();
     interrupt::enable();

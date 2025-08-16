@@ -14,6 +14,7 @@ pub fn apply() {
 }
 
 pub(super) extern "C" fn trap_kernel() {
+    super::cpu_state().increment_irq_depth();
     let sepc = sepc::read();
     let sstatus = sstatus::read();
     let stval = stval::read();
@@ -42,4 +43,5 @@ pub(super) extern "C" fn trap_kernel() {
     unsafe {
         sstatus::write(sstatus);
     }
+    super::cpu_state().decrement_irq_depth();
 }
