@@ -14,14 +14,18 @@ default: help
 CARGO_BUILD_FLAGS ?= \
 	-Zbuild-std=core,compiler_builtins,alloc,panic_abort \
 	-Zbuild-std-features="compiler-builtins-mem"
-
 CARGO_CROSS_TARGET ?= riscv64imac-unknown-none-elf
 CARGO_CROSS_FLAGS ?= \
-	--target riscv64imac-unknown-none-elf
+	--target $(CARGO_CROSS_TARGET)
 
 CARGO_PROFILE_FLAGS ?=
 ifdef RELEASE
 	CARGO_PROFILE_FLAGS += --release
+endif
+
+QEMU_RUN_FLAGS ?=
+ifdef QEMU_LOG
+	QEMU_RUN_FLAGS += -d unimp,guest_errors,int -D target/qemu.log
 endif
 
 ## Build the project
@@ -85,7 +89,7 @@ clippy-native:
 ## Run the project
 .PHONY: run
 run:
-	cargo run -p kernel $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS)
+	cargo run -p kernel $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS) -- $(QEMU_RUN_FLAGS)
 
 ## Test the project
 .PHONY: test
