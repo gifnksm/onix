@@ -62,11 +62,6 @@ pub enum ParsePlicNodeError {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("`reg` property contains too many addresses"))]
-    TooManyAddressesReg {
-        #[snafu(implicit)]
-        location: Location,
-    },
     #[snafu(display("invalid specifier len"))]
     InvalidSpecifierLen {
         #[snafu(implicit)]
@@ -75,10 +70,8 @@ pub enum ParsePlicNodeError {
 }
 
 pub fn parse(dtree: &Devicetree) -> Result<Vec<Arc<Plic>>, Box<ParseDevicetreeError>> {
-    let root = dtree.root_node();
-    let soc_node = root
-        .children()
-        .find(|node| node.name() == "soc")
+    let soc_node = dtree
+        .find_node_by_path("/soc")
         .context(MissingSocNodeSnafu)?;
     let plic_devices = soc_node
         .children()
@@ -112,9 +105,11 @@ fn parse_context_map(plic_node: &Node) -> Result<BTreeMap<Cpuid, PlicContext>, P
 impl Plic {
     fn parse(plic_node: &Node) -> Result<Self, ParsePlicNodeError> {
         let path = plic_node.path();
-        let mut reg_iter = plic_node.reg().context(PropertyInNodeSnafu)?;
-        let reg = reg_iter.next().context(NoAddressInRegSnafu)?;
-        ensure!(reg_iter.next().is_none(), TooManyAddressesRegSnafu);
+        let reg = plic_node
+            .reg()
+            .context(PropertyInNodeSnafu)?
+            .assume_one()
+            .context(NoAddressInRegSnafu)?;
         let ndev = usize::cast_from(
             plic_node
                 .fetch_property_as::<u32>("riscv,ndev")
@@ -146,9 +141,11 @@ impl PlicContext {
         if cpu_node.name() != "cpu" {
             return Ok(None);
         }
-        let mut reg_iter = cpu_node.reg().context(PropertyInNodeSnafu)?;
-        assert_eq!(reg_iter.len(), 1);
-        let reg = reg_iter.next().unwrap();
+        let reg = cpu_node
+            .reg()
+            .context(PropertyInNodeSnafu)?
+            .assume_one()
+            .unwrap();
         let cpuid = Cpuid::from_raw(reg.address);
 
         ensure!(interrupt.specifier.len() == 1, InvalidSpecifierLenSnafu);

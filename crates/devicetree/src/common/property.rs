@@ -77,6 +77,11 @@ pub enum ParsePropertyValueError {
         #[snafu(implicit)]
         location: Location,
     },
+    #[snafu(display("value length is too large"))]
+    ValueLengthIsTooLarge {
+        #[snafu(implicit)]
+        location: Location,
+    },
     #[snafu(display("invalid `#address-cells`: {address_cells}"))]
     InvalidAddressCells {
         address_cells: usize,
@@ -350,6 +355,18 @@ pub struct RegIter<'fdt> {
     address_cells: usize,
     size_cells: usize,
     bytes: &'fdt [u8],
+}
+
+impl RegIter<'_> {
+    #[must_use]
+    pub fn assume_one(&self) -> Option<Reg> {
+        let mut this = self.clone();
+        let reg = this.next()?;
+        if this.next().is_some() {
+            return None;
+        }
+        Some(reg)
+    }
 }
 
 impl Iterator for RegIter<'_> {

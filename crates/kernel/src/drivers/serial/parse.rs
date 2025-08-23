@@ -5,7 +5,7 @@ use devicetree::parsed::{
     Devicetree,
     node::{Interrupt, Node, PropertyError},
 };
-use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
+use snafu::{OptionExt as _, ResultExt as _, Snafu};
 use snafu_utils::Location;
 
 use super::SerialDevice;
@@ -64,11 +64,6 @@ pub enum ParseSerialNodeError {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("`reg` property contains too many addresses"))]
-    TooManyAddressesReg {
-        #[snafu(implicit)]
-        location: Location,
-    },
     #[snafu(display("unsupporeted serial device: {path}"))]
     UnsupportedDevice {
         path: String,
@@ -85,10 +80,8 @@ pub enum ParseSerialNodeError {
 pub(super) fn parse(
     dtree: &Devicetree,
 ) -> Result<Vec<Arc<SpinMutex<SerialDevice>>>, Box<ParseDevicetreeError>> {
-    let root = dtree.root_node();
-    let soc_node = root
-        .children()
-        .find(|node| node.name() == "soc")
+    let soc_node = dtree
+        .find_node_by_path("/soc")
         .context(MissingSocNodeSnafu)?;
     let serial_drivers = soc_node
         .children()
@@ -123,9 +116,11 @@ impl SerialDevice {
     fn parse(serial_node: &Node) -> Result<Self, ParseSerialNodeError> {
         let interrupts = serial_node.interrupts().context(PropertySnafu)?;
         let (plic, source) = find_plic_source(&interrupts)?;
-        let mut reg_iter = serial_node.reg().context(PropertySnafu)?;
-        let reg = reg_iter.next().context(NoAddressInRegSnafu)?;
-        ensure!(reg_iter.next().is_none(), TooManyAddressesRegSnafu);
+        let reg = serial_node
+            .reg()
+            .context(PropertySnafu)?
+            .assume_one()
+            .context(NoAddressInRegSnafu)?;
         let base_addr = reg.address;
         let size = reg.size;
         let uart_clock_frequency = serial_node

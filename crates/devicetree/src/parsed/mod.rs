@@ -46,6 +46,31 @@ impl Devicetree {
             tree: Arc::clone(&self.inner),
         })
     }
+
+    #[must_use]
+    pub fn find_node_by_path(&self, path: &str) -> Option<Node> {
+        let mut current = self.root_node();
+        for component in path.split('/').skip(1) {
+            if component.is_empty() {
+                continue;
+            }
+            if component == ".." {
+                current = current.parent()?;
+                continue;
+            }
+            if component == "." {
+                continue;
+            }
+            let (name, unit_address) = match component.split_once('@') {
+                Some((name, address)) => (name, Some(address)),
+                None => (component, None),
+            };
+            current = current
+                .children()
+                .find(|n| n.name() == name && n.address() == unit_address)?;
+        }
+        Some(current)
+    }
 }
 
 impl fmt::Debug for Devicetree {

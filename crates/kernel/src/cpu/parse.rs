@@ -6,7 +6,7 @@ use devicetree::parsed::{
     node::{Node, PropertyError},
 };
 use either::Either;
-use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
+use snafu::{OptionExt as _, ResultExt as _, Snafu};
 use snafu_utils::Location;
 
 use super::{Cpu, Cpuid};
@@ -46,11 +46,8 @@ pub enum ParseDevicetreeError {
 
 pub(super) fn parse(dtree: &Devicetree) -> Result<Vec<Cpu>, Box<ParseDevicetreeError>> {
     let cpus_node = dtree
-        .root_node()
-        .children()
-        .find(|n| n.name() == "cpus")
+        .find_node_by_path("/cpus")
         .context(MissingCpusNodeSnafu)?;
-
     let all_cpus = cpus_node
         .children()
         .filter(|node| node.name() == "cpu")
@@ -88,9 +85,11 @@ pub enum ParseCpuError {
 
 impl Cpu {
     fn parse(cpu_node: &Node) -> Result<Self, ParseCpuError> {
-        let mut reg_iter = cpu_node.reg().context(PropertySnafu)?;
-        let reg = reg_iter.next().context(NoAddressInRegSnafu)?;
-        ensure!(reg_iter.next().is_none(), TooManyAddressesRegSnafu);
+        let reg = cpu_node
+            .reg()
+            .context(PropertySnafu)?
+            .assume_one()
+            .context(NoAddressInRegSnafu)?;
 
         let id = Cpuid(reg.address);
         let timer_frequency = cpu_node
