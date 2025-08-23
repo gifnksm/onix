@@ -32,6 +32,7 @@ mod cpu_local;
 
 mod boot;
 mod cpu;
+mod drivers;
 mod interrupt;
 mod memory;
 mod sync;
@@ -67,7 +68,8 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     cpu_local::apply(cpuid);
     cpu::set_current_cpuid(cpuid);
     interrupt::init(cpuid);
-    memory::kernel_space::init(&memory_layout).unwrap();
+    memory::kernel_space::init().unwrap();
+    memory::layout::update_kernel_page_table(&memory_layout).unwrap();
     memory::kernel_space::apply();
 
     let stack = memory::kernel_space::allocate_kernel_stack().unwrap();
@@ -97,6 +99,11 @@ fn main() -> ! {
         unsafe {
             start_secondary_cpus();
         }
+
+        let dtree = DEVICETREE.get().unwrap();
+        drivers::irq::plic::init(dtree).unwrap();
+        drivers::serial::init(dtree).unwrap();
+
         INIT_COMPLETED.store(true, Ordering::Release);
     } else {
         while !INIT_COMPLETED.load(Ordering::Acquire) {
@@ -104,6 +111,7 @@ fn main() -> ! {
         }
     }
 
+    drivers::serial::apply();
     interrupt::trap::apply();
     interrupt::timer::start();
 
@@ -183,12 +191,10 @@ extern "C" fn tx_task(arg: *mut c_void) -> ! {
             queue.push_back((task_id, i, Instant::now()));
             state.message_sent.notify_one();
             queue.unlock();
-            info!("sent ({task_id}, {i})");
             i += 1;
             timer::sleep(Duration::from_millis(50));
             queue = state.queue.lock();
         } else {
-            info!("sender waiting...");
             queue = state.message_received.wait(queue);
         }
     }
@@ -203,13 +209,14 @@ extern "C" fn rx_task(arg: *mut c_void) -> ! {
         if let Some((task_id, i, time)) = queue.pop_front() {
             state.message_received.notify_all();
             queue.unlock();
-            info!("received ({task_id}, {i}, {:?})", time.elapsed());
+            if (i + 1) % 50 == 0 {
+                info!("received ({task_id}, {i}, {:?})", time.elapsed());
+            }
             let mut shared = task.shared.lock();
             scheduler::yield_execution(&mut shared);
             shared.unlock();
             queue = state.queue.lock();
         } else {
-            info!("receiver waiting...");
             queue = state.message_sent.wait(queue);
         }
     }

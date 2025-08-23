@@ -38,7 +38,6 @@ macro_rules! info {
     };
 }
 
-#[expect(unused_macros)]
 macro_rules! warn {
     ($($arg:tt)*) => {
         log!($crate::log::LogLevel::Warn, $($arg)*);

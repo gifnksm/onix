@@ -1,3 +1,5 @@
+use alloc::sync::Arc;
+
 use riscv::{
     interrupt::{Exception, Interrupt, Trap},
     register::{
@@ -6,11 +8,24 @@ use riscv::{
         stval,
     },
 };
+use spin::Once;
+
+use crate::{
+    cpu,
+    drivers::irq::plic::{self, Plic, PlicContext},
+};
+
+cpu_local! {
+    static PLIC_CONTEXT: Once<(Arc<Plic>, PlicContext)> = Once::new();
+}
 
 mod imp;
 
 pub fn apply() {
     imp::apply();
+    let cpu = cpu::current();
+    let plic_ctx = plic::find_plic_context_for_cpu(cpu.id()).unwrap();
+    PLIC_CONTEXT.get().call_once(|| plic_ctx);
 }
 
 pub(super) extern "C" fn trap_kernel() {
@@ -29,6 +44,10 @@ pub(super) extern "C" fn trap_kernel() {
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             super::timer::handle_interrupt();
+        }
+        Trap::Interrupt(Interrupt::SupervisorExternal) => {
+            let (plic, plic_ctx) = PLIC_CONTEXT.get().get().unwrap();
+            let _handled = plic.handle_interrupt(*plic_ctx);
         }
         Trap::Interrupt(int) => {
             panic!("unexpected kernel interrupt {int:#?}, sepc={sepc:#x}, stval={stval:#x}");

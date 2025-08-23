@@ -13,6 +13,7 @@ publish.workspace = true
 [dependencies]
 custom_debug_derive.workspace = true
 dataview.workspace = true
+either.workspace = true
 endian.workspace = true
 platform-cast.workspace = true
 snafu.workspace = true

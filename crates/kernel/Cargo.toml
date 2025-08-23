@@ -18,9 +18,12 @@ bench = false
 [dependencies]
 allocator.workspace = true
 ansi-term.workspace = true
+bitflags.workspace = true
 cfg-if.workspace = true
+custom_debug_derive.workspace = true
 dataview.workspace = true
 devicetree.workspace = true
+either.workspace = true
 platform-cast.workspace = true
 range-set.workspace = true
 riscv.workspace = true

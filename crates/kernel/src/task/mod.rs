@@ -13,7 +13,7 @@ use snafu_utils::Location;
 
 use self::scheduler::Context;
 use crate::{
-    memory::kernel_space::{self, KernelStack, KernelStackError},
+    memory::kernel_space::{self, AllocateKernelStackError, KernelStack},
     sync::spinlock::{SpinMutex, SpinMutexGuard},
 };
 
@@ -61,7 +61,7 @@ pub enum TaskCreateError {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: KernelStackError,
+        source: AllocateKernelStackError,
     },
 }
 

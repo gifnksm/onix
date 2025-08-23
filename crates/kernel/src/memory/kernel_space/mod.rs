@@ -1,4 +1,7 @@
-use core::ops::Range;
+use core::{
+    ops::Range,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use riscv::register::satp::{self, Satp};
 use riscv_utils::asm;
@@ -12,10 +15,7 @@ use sv39::{
 };
 
 use self::stack::StackSlot;
-use super::{
-    PAGE_SIZE,
-    layout::{self, MemoryLayout},
-};
+use super::PAGE_SIZE;
 use crate::{cpu, memory::Align as _, sync::spinlock::SpinMutex};
 
 mod stack;
@@ -23,7 +23,7 @@ mod stack;
 const KERNEL_ASID: u16 = 0;
 
 #[derive(Debug)]
-pub struct KernelPageTable {
+struct KernelPageTable {
     pt: PageTableRoot,
 }
 
@@ -33,7 +33,7 @@ impl KernelPageTable {
         Ok(Self { pt })
     }
 
-    pub fn identity_map_range(
+    fn identity_map_range(
         &mut self,
         addr_range: Range<usize>,
         flags: MapPageFlags,
@@ -46,7 +46,7 @@ impl KernelPageTable {
         self.pt.map_fixed_pages(start_vpn, start_ppn, count, flags)
     }
 
-    pub fn allocate_virt_addr_range(
+    fn allocate_virt_addr_range(
         &mut self,
         addr_range: Range<usize>,
         flags: MapPageFlags,
@@ -69,18 +69,14 @@ impl KernelPageTable {
 
 static KERNEL_PAGE_TABLE: Once<SpinMutex<KernelPageTable>> = Once::new();
 
-pub fn init(memory_layout: &MemoryLayout) -> Result<(), PageTableError> {
+cpu_local! {
+    static APPLIED: AtomicBool = AtomicBool::new(false);
+}
+
+pub fn init() -> Result<(), PageTableError> {
     stack::init();
-    let mut kpgtbl = KernelPageTable::new()?;
-
-    kpgtbl.identity_map_range(layout::kernel_rx_range(), MapPageFlags::RX)?;
-    kpgtbl.identity_map_range(layout::kernel_ro_range(), MapPageFlags::R)?;
-    kpgtbl.identity_map_range(layout::kernel_rw_range(), MapPageFlags::RW)?;
-
-    layout::update_kernel_page_table(&mut kpgtbl, memory_layout)?;
-
+    let kpgtbl = KernelPageTable::new()?;
     KERNEL_PAGE_TABLE.call_once(|| SpinMutex::new(kpgtbl));
-
     Ok(())
 }
 
@@ -98,6 +94,74 @@ pub fn apply() {
     }
 
     asm::sfence_vma_asid_all(asid.into());
+    APPLIED.get().store(true, Ordering::Release);
+}
+
+#[derive(Debug, Snafu)]
+pub enum SfenceAddrsError {
+    #[snafu(display("remote sfence.vma failed: {source}"))]
+    RemoteSfenceVma {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: SbiError,
+    },
+}
+
+fn sfence_addrs(asid: u16, vaddr_range: Range<usize>) -> Result<(), SfenceAddrsError> {
+    vaddr_range.clone().step_by(PAGE_SIZE).for_each(|vaddr| {
+        asm::sfence_vma(vaddr, asid.into());
+    });
+
+    for cpu_mask in cpu::remote_cpu_masks() {
+        rfence::remote_sfence_vma_asid(
+            cpu_mask.mask,
+            cpu_mask.base,
+            vaddr_range.start,
+            vaddr_range.len(),
+            asid.into(),
+        )
+        .context(RemoteSfenceVmaSnafu)?;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(context(suffix(IdentityMapSnafu)))]
+pub enum IdentityMapError {
+    #[snafu(display("page table error: {source}"))]
+    PageTable {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: PageTableError,
+    },
+    #[snafu(display("sfence failed: {source}"))]
+    SfenceAddrs {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: SfenceAddrsError,
+    },
+}
+
+pub fn identity_map_range(
+    range: Range<usize>,
+    flags: MapPageFlags,
+) -> Result<(), IdentityMapError> {
+    let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
+    let asid = kpgtbl.asid();
+    kpgtbl
+        .identity_map_range(range.clone(), flags)
+        .context(PageTableIdentityMapSnafu)?;
+    kpgtbl.unlock();
+
+    if APPLIED.get().load(Ordering::Acquire) {
+        sfence_addrs(asid, range).context(SfenceAddrsIdentityMapSnafu)?;
+    }
+
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -118,7 +182,8 @@ impl Drop for KernelStack {
 }
 
 #[derive(Debug, Snafu)]
-pub enum KernelStackError {
+#[snafu(context(suffix(AllocateKernelStackSnafu)))]
+pub enum AllocateKernelStackError {
     #[snafu(display("no stack slot available"))]
     NoStackSlot {
         #[snafu(implicit)]
@@ -131,38 +196,27 @@ pub enum KernelStackError {
         #[snafu(source)]
         source: PageTableError,
     },
-    #[snafu(display("remote sfence.vma failed: {source}"))]
-    RemoteSfenceVma {
+    #[snafu(display("sfence failed: {source}"))]
+    SfenceAddrs {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: SbiError,
+        source: SfenceAddrsError,
     },
 }
 
-pub fn allocate_kernel_stack() -> Result<KernelStack, KernelStackError> {
-    let slot = StackSlot::allocate().context(NoStackSlotSnafu)?;
+pub fn allocate_kernel_stack() -> Result<KernelStack, AllocateKernelStackError> {
+    let slot = StackSlot::allocate().context(NoStackSlotAllocateKernelStackSnafu)?;
 
     let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
     let asid = kpgtbl.asid();
     kpgtbl
         .allocate_virt_addr_range(slot.range(), MapPageFlags::RW)
-        .context(PageTableSnafu)?;
+        .context(PageTableAllocateKernelStackSnafu)?;
     kpgtbl.unlock();
 
-    slot.range().step_by(PAGE_SIZE).for_each(|vaddr| {
-        asm::sfence_vma(vaddr, asid.into());
-    });
-
-    for cpu_mask in cpu::remote_cpu_masks() {
-        rfence::remote_sfence_vma_asid(
-            cpu_mask.mask,
-            cpu_mask.base,
-            slot.range().start,
-            slot.range().len(),
-            asid.into(),
-        )
-        .context(RemoteSfenceVmaSnafu)?;
+    if APPLIED.get().load(Ordering::Acquire) {
+        sfence_addrs(asid, slot.range()).context(SfenceAddrsAllocateKernelStackSnafu)?;
     }
 
     Ok(KernelStack { slot })

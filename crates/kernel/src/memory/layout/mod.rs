@@ -4,12 +4,12 @@ use devicetree::flattened::Devicetree;
 use range_set::RangeSet;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
-use sv39::{MapPageFlags, PageTableError};
+use sv39::MapPageFlags;
 
-use self::fdt::DevicetreeError;
-use super::kernel_space::KernelPageTable;
+use self::parse::DevicetreeError;
+use super::kernel_space::{self, IdentityMapError};
 
-mod fdt;
+mod parse;
 
 unsafe extern "C" {
     #[link_name = "__onix_kernel_start"]
@@ -63,11 +63,11 @@ pub struct MemoryLayout {
 impl MemoryLayout {
     pub fn new(dtb: &Devicetree) -> Result<Self, MemoryLayoutError> {
         let mut available_ranges = RangeSet::<128>::new();
-        fdt::insert_memory_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
-        fdt::remove_reserved_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
+        parse::insert_memory_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
+        parse::remove_reserved_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
         available_ranges.remove(kernel_reserved_range());
 
-        let dtb_range = fdt::dtb_range(dtb);
+        let dtb_range = parse::dtb_range(dtb);
         Ok(Self {
             available_ranges,
             dtb_range,
@@ -116,13 +116,14 @@ pub fn kernel_rw_range() -> Range<usize> {
     super::expand_to_page_boundaries(rw_start..rw_end)
 }
 
-pub fn update_kernel_page_table(
-    kpgtbl: &mut KernelPageTable,
-    layout: &MemoryLayout,
-) -> Result<(), PageTableError> {
+pub fn update_kernel_page_table(layout: &MemoryLayout) -> Result<(), IdentityMapError> {
+    kernel_space::identity_map_range(kernel_rx_range(), MapPageFlags::RX)?;
+    kernel_space::identity_map_range(kernel_ro_range(), MapPageFlags::R)?;
+    kernel_space::identity_map_range(kernel_rw_range(), MapPageFlags::RW)?;
+
     let rw_ranges = &layout.available_ranges;
     for range in rw_ranges {
-        kpgtbl.identity_map_range(range.clone(), MapPageFlags::RW)?;
+        kernel_space::identity_map_range(range.clone(), MapPageFlags::RW)?;
     }
     Ok(())
 }

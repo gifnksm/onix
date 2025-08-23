@@ -32,53 +32,15 @@
 //! }
 //! ```
 
-use core::{fmt, iter::FusedIterator, ops::Range, str::Utf8Error};
+use alloc::boxed::Box;
+use core::{array, fmt, iter::FusedIterator, ops::Range, str::Utf8Error};
 
+use either::Either;
 use platform_cast::CastFrom as _;
 use snafu::{OptionExt as _, ResultExt as _, Snafu, ensure};
 use snafu_utils::Location;
 
-#[derive(Debug)]
-pub enum ExpectedValues<T>
-where
-    T: 'static,
-{
-    Single(T),
-    Multiple(&'static [T]),
-}
-
-impl<T> From<T> for ExpectedValues<T> {
-    fn from(value: T) -> Self {
-        Self::Single(value)
-    }
-}
-
-impl<T> From<&'static [T]> for ExpectedValues<T> {
-    fn from(value: &'static [T]) -> Self {
-        Self::Multiple(value)
-    }
-}
-
-impl<T> fmt::Display for ExpectedValues<T>
-where
-    T: fmt::Display,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Single(value) => write!(f, "{value}"),
-            Self::Multiple(values) => {
-                let mut iter = values.iter();
-                if let Some(first) = iter.next() {
-                    write!(f, "{first}")?;
-                }
-                for value in iter {
-                    write!(f, ", {value}")?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
+use super::Phandle;
 
 #[derive(Debug, Snafu)]
 pub enum ParsePropertyValueError {
@@ -96,8 +58,22 @@ pub enum ParsePropertyValueError {
     },
     #[snafu(display("invalid value length. expected: {expected}, actual: {actual}"))]
     InvalidValueLength {
-        expected: ExpectedValues<usize>,
+        expected: usize,
         actual: usize,
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: array::TryFromSliceError,
+    },
+    #[snafu(display("value length is not multiple of `{unit}`: length: {len}"))]
+    ValueLengthIsNotMultipleOf {
+        unit: usize,
+        len: usize,
+        #[snafu(implicit)]
+        location: Location,
+    },
+    #[snafu(display("value length is too small"))]
+    ValueLengthIsTooSmall {
         #[snafu(implicit)]
         location: Location,
     },
@@ -110,6 +86,13 @@ pub enum ParsePropertyValueError {
     #[snafu(display("invalid `#size-cells`: {size_cells}"))]
     InvalidSizeCells {
         size_cells: usize,
+        #[snafu(implicit)]
+        location: Location,
+    },
+    #[snafu(display("value cannot be parsed: {left}, {right}"))]
+    Either {
+        left: Box<ParsePropertyValueError>,
+        right: Box<ParsePropertyValueError>,
         #[snafu(implicit)]
         location: Location,
     },
@@ -161,13 +144,13 @@ impl<'a> Property<'a> {
         match self.name {
             "interrupt-controller" => Ok(PropertyValue::Empty),
             "#address-cells" | "#size-cells" | "virtual-reg" | "#interrupt-cells" => {
-                self.value_as_u32().map(PropertyValue::U32)
+                self.parse_value().map(PropertyValue::U32)
             }
-            "compatible" => self.value_as_string_list().map(PropertyValue::StringList),
+            "compatible" => self.parse_value().map(PropertyValue::StringList),
             "model" | "status" | "name" | "device_type" => {
-                self.value_as_string().map(PropertyValue::String)
+                self.parse_value().map(PropertyValue::String)
             }
-            "phandle" | "interrupt-parent" => self.value_as_phandle().map(PropertyValue::Phandle),
+            "phandle" | "interrupt-parent" => self.parse_value().map(PropertyValue::Phandle),
             "reg"
             | "interrupts"
             | "interrupts-extended"
@@ -185,118 +168,15 @@ impl<'a> Property<'a> {
         }
     }
 
-    /// Parses the property value as a fixed-size byte array.
-    ///
-    /// This is useful for properties that should contain exactly N bytes.
-    ///
-    /// # Type Parameters
-    ///
-    /// * `N` - The expected number of bytes
-    ///
-    /// # Returns
-    ///
-    /// * `Ok([u8; N])` - The property value as a byte array
-    /// * `Err(ParsePropertyValueError)` - If the length doesn't match
-    pub fn value_as_array<const N: usize>(&self) -> Result<[u8; N], ParsePropertyValueError> {
-        self.value.try_into().map_or_else(
-            |_| {
-                Err(InvalidValueLengthSnafu {
-                    expected: N,
-                    actual: self.value.len(),
-                }
-                .build())
-            },
-            Ok,
-        )
+    /// Parses the property value as a specified type `T`.
+    pub fn parse_value<T>(&self) -> Result<T, ParsePropertyValueError>
+    where
+        T: ParsePropertyValue<'a>,
+    {
+        T::parse(self)
     }
 
-    /// Parses the property value as a 32-bit big-endian integer.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(u32)` - The parsed integer value
-    /// * `Err(ParsePropertyValueError)` - If the value is not exactly 4 bytes
-    pub fn value_as_u32(&self) -> Result<u32, ParsePropertyValueError> {
-        Ok(u32::from_be_bytes(self.value_as_array()?))
-    }
-
-    /// Parses the property value as a 64-bit big-endian integer.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(u64)` - The parsed integer value
-    /// * `Err(ParsePropertyValueError)` - If the value is not exactly 8 bytes
-    pub fn value_as_u64(&self) -> Result<u64, ParsePropertyValueError> {
-        Ok(u64::from_be_bytes(self.value_as_array()?))
-    }
-
-    pub fn value_as_u32_or_u64(&self) -> Result<u64, ParsePropertyValueError> {
-        #[expect(clippy::map_err_ignore)]
-        self.value_as_u32()
-            .map(u64::from)
-            .or_else(|_| self.value_as_u64())
-            .map_err(|_| {
-                InvalidValueLengthSnafu {
-                    expected: [4, 8].as_slice(),
-                    actual: self.value.len(),
-                }
-                .build()
-            })
-    }
-
-    /// Parses the property value as a phandle (reference to another node).
-    ///
-    /// Phandles are 32-bit values that reference other nodes in the device
-    /// tree.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(u32)` - The phandle value
-    /// * `Err(ParsePropertyValueError)` - If the value is not exactly 4 bytes
-    pub fn value_as_phandle(&self) -> Result<u32, ParsePropertyValueError> {
-        Ok(u32::from_be_bytes(self.value_as_array()?))
-    }
-
-    /// Parses the property value as a null-terminated string.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(&str)` - The parsed string (without the null terminator)
-    /// * `Err(ParsePropertyValueError)` - If no null terminator is found or
-    ///   invalid UTF-8
-    pub fn value_as_string(&self) -> Result<&'a str, ParsePropertyValueError> {
-        let end = self
-            .value
-            .iter()
-            .position(|b| *b == b'\0')
-            .context(MissingNulInStringSnafu)?;
-        let bytes = &self.value[..end];
-        let s = str::from_utf8(bytes).context(Utf8Snafu)?;
-        Ok(s)
-    }
-
-    /// Parses the property value as a list of null-terminated strings.
-    ///
-    /// String lists are used for properties like "compatible" that can contain
-    /// multiple string values.
-    ///
-    /// # Returns
-    ///
-    /// * `Ok(StringList)` - An iterator over the individual strings
-    /// * `Err(ParsePropertyValueError)` - If no null terminators found or
-    ///   invalid UTF-8
-    pub fn value_as_string_list(&self) -> Result<StringList<'a>, ParsePropertyValueError> {
-        let end = self
-            .value
-            .iter()
-            .rposition(|b| *b == b'\0')
-            .context(MissingNulInStringSnafu)?;
-        let bytes = &self.value[..=end];
-        let s = str::from_utf8(bytes).context(Utf8Snafu)?;
-        Ok(StringList { value: s })
-    }
-
-    pub fn value_as_reg(
+    pub fn parse_value_as_reg(
         &self,
         address_cells: usize,
         size_cells: usize,
@@ -313,9 +193,9 @@ impl<'a> Property<'a> {
             self.value
                 .len()
                 .is_multiple_of((address_cells + size_cells) * size_of::<u32>()),
-            InvalidValueLengthSnafu {
-                expected: address_cells + size_cells,
-                actual: self.value.len(),
+            ValueLengthIsNotMultipleOfSnafu {
+                unit: address_cells + size_cells,
+                len: self.value.len(),
             }
         );
         Ok(RegIter {
@@ -323,6 +203,85 @@ impl<'a> Property<'a> {
             size_cells,
             bytes: self.value,
         })
+    }
+}
+
+pub trait ParsePropertyValue<'a>: Sized {
+    fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError>;
+}
+
+impl<const N: usize> ParsePropertyValue<'_> for [u8; N] {
+    fn parse(prop: &Property<'_>) -> Result<Self, ParsePropertyValueError> {
+        prop.value.try_into().context(InvalidValueLengthSnafu {
+            expected: N,
+            actual: prop.value.len(),
+        })
+    }
+}
+
+impl ParsePropertyValue<'_> for u32 {
+    fn parse(prop: &Property<'_>) -> Result<Self, ParsePropertyValueError> {
+        Ok(Self::from_be_bytes(prop.parse_value()?))
+    }
+}
+
+impl ParsePropertyValue<'_> for u64 {
+    fn parse(prop: &Property<'_>) -> Result<Self, ParsePropertyValueError> {
+        Ok(Self::from_be_bytes(prop.parse_value()?))
+    }
+}
+
+impl ParsePropertyValue<'_> for Phandle {
+    fn parse(prop: &Property<'_>) -> Result<Self, ParsePropertyValueError> {
+        Ok(Self(prop.parse_value()?))
+    }
+}
+
+impl<'a> ParsePropertyValue<'a> for &'a str {
+    fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
+        let end = prop
+            .value
+            .iter()
+            .position(|b| *b == b'\0')
+            .context(MissingNulInStringSnafu)?;
+        let bytes = &prop.value[..end];
+        let s = str::from_utf8(bytes).context(Utf8Snafu)?;
+        Ok(s)
+    }
+}
+
+impl<'a> ParsePropertyValue<'a> for StringList<'a> {
+    fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
+        let end = prop
+            .value
+            .iter()
+            .rposition(|b| *b == b'\0')
+            .context(MissingNulInStringSnafu)?;
+        let bytes = &prop.value[..=end];
+        let s = str::from_utf8(bytes).context(Utf8Snafu)?;
+        Ok(StringList { value: s })
+    }
+}
+
+impl<'a, L, R> ParsePropertyValue<'a> for Either<L, R>
+where
+    L: ParsePropertyValue<'a>,
+    R: ParsePropertyValue<'a>,
+{
+    fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
+        let left = match L::parse(prop) {
+            Ok(value) => return Ok(Self::Left(value)),
+            Err(e) => e,
+        };
+        let right = match R::parse(prop) {
+            Ok(value) => return Ok(Self::Right(value)),
+            Err(e) => e,
+        };
+        Err(EitherSnafu {
+            left: Box::new(left),
+            right: Box::new(right),
+        }
+        .build())
     }
 }
 
@@ -350,6 +309,38 @@ impl Reg {
     }
 }
 
+pub(crate) fn checked_split_first_chunk<const N: usize>(
+    bytes: &mut &[u8],
+) -> Result<[u8; N], ParsePropertyValueError> {
+    let chunk;
+    (chunk, *bytes) = bytes
+        .split_first_chunk()
+        .context(ValueLengthIsTooSmallSnafu)?;
+    Ok(*chunk)
+}
+
+pub(crate) fn split_first_bytes<'a>(
+    bytes: &mut &'a [u8],
+    len: usize,
+) -> Result<&'a [u8], ParsePropertyValueError> {
+    ensure!(bytes.len() >= len, ValueLengthIsTooSmallSnafu);
+    let (first, rest) = bytes.split_at(len);
+    *bytes = rest;
+    Ok(first)
+}
+
+fn split_first_chunk<const N: usize>(bytes: &mut &[u8]) -> [u8; N] {
+    let chunk;
+    (chunk, *bytes) = bytes.split_first_chunk().unwrap();
+    *chunk
+}
+
+fn split_last_chunk<const N: usize>(bytes: &mut &[u8]) -> [u8; N] {
+    let chunk;
+    (*bytes, chunk) = bytes.split_last_chunk().unwrap();
+    *chunk
+}
+
 /// Iterator over register entries in a "reg" property.
 ///
 /// Parses the binary data in a "reg" property according to the
@@ -365,26 +356,20 @@ impl Iterator for RegIter<'_> {
     type Item = Reg;
 
     fn next(&mut self) -> Option<Self::Item> {
-        fn split_first<const N: usize>(bytes: &mut &[u8]) -> [u8; N] {
-            let chunk;
-            (chunk, *bytes) = bytes.split_first_chunk().unwrap();
-            *chunk
-        }
-
         if self.bytes.is_empty() {
             return None;
         }
 
         let address = match self.address_cells {
-            1 => usize::cast_from(u32::from_be_bytes(split_first(&mut self.bytes))),
-            2 => usize::cast_from(u64::from_be_bytes(split_first(&mut self.bytes))),
+            1 => usize::cast_from(u32::from_be_bytes(split_first_chunk(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_first_chunk(&mut self.bytes))),
             _ => unreachable!("address_cells must be 1 or 2"),
         };
 
         let size = match self.size_cells {
             0 => 0,
-            1 => usize::cast_from(u32::from_be_bytes(split_first(&mut self.bytes))),
-            2 => usize::cast_from(u64::from_be_bytes(split_first(&mut self.bytes))),
+            1 => usize::cast_from(u32::from_be_bytes(split_first_chunk(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_first_chunk(&mut self.bytes))),
             _ => unreachable!("size_cells must be 0, 1, or 2"),
         };
 
@@ -394,26 +379,20 @@ impl Iterator for RegIter<'_> {
 
 impl DoubleEndedIterator for RegIter<'_> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        fn split_last<const N: usize>(bytes: &mut &[u8]) -> [u8; N] {
-            let chunk;
-            (*bytes, chunk) = bytes.split_last_chunk().unwrap();
-            *chunk
-        }
-
         if self.bytes.is_empty() {
             return None;
         }
 
         let size = match self.size_cells {
             0 => 0,
-            1 => usize::cast_from(u32::from_be_bytes(split_last(&mut self.bytes))),
-            2 => usize::cast_from(u64::from_be_bytes(split_last(&mut self.bytes))),
+            1 => usize::cast_from(u32::from_be_bytes(split_last_chunk(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_last_chunk(&mut self.bytes))),
             _ => unreachable!("size_cells must be 0, 1, or 2"),
         };
 
         let address = match self.address_cells {
-            1 => usize::cast_from(u32::from_be_bytes(split_last(&mut self.bytes))),
-            2 => usize::cast_from(u64::from_be_bytes(split_last(&mut self.bytes))),
+            1 => usize::cast_from(u32::from_be_bytes(split_last_chunk(&mut self.bytes))),
+            2 => usize::cast_from(u64::from_be_bytes(split_last_chunk(&mut self.bytes))),
             _ => unreachable!("address_cells must be 1 or 2"),
         };
 
@@ -436,7 +415,7 @@ pub enum PropertyValue<'a> {
     U64(u64),
     String(&'a str),
     PropEncodedArray(&'a [u8]),
-    Phandle(u32),
+    Phandle(Phandle),
     StringList(StringList<'a>),
     Unknown(&'a [u8]),
 }
@@ -445,8 +424,9 @@ impl fmt::Display for PropertyValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Empty => write!(f, "<empty>"),
-            Self::U32(n) | Self::Phandle(n) => write!(f, "<{n:#04x}>"),
+            Self::U32(n) => write!(f, "<{n:#04x}>"),
             Self::U64(n) => write!(f, "<{n:#04x}>"),
+            Self::Phandle(n) => write!(f, "<{n:#04x}>"),
             Self::String(s) => write!(f, "{s:?}"),
             Self::StringList(s) => write!(f, "{s}"),
             Self::PropEncodedArray(items) | Self::Unknown(items) => {

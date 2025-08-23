@@ -1,13 +1,13 @@
 use core::{ops::Range, ptr};
 
 use devicetree::{
-    common::property::{ParsePropertyValueError, Property, RegIter},
+    common::property::{ParsePropertyValue, ParsePropertyValueError, Property, RegIter},
     flattened::{
         Devicetree,
         node::{Node, ParseStructError},
     },
 };
-use platform_cast::CastInto;
+use platform_cast::CastInto as _;
 use range_set::RangeSet;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
@@ -116,18 +116,20 @@ fn find_prop<'fdt>(
     Err(MissingPropertySnafu { name }.build())
 }
 
-fn find_prop_u32(node: &Node<'_, '_>, name: &'static str) -> Result<u32, DevicetreeError> {
+fn find_prop_as<'fdt, T>(node: &Node<'fdt, '_>, name: &'static str) -> Result<T, DevicetreeError>
+where
+    T: ParsePropertyValue<'fdt>,
+{
     let prop = find_prop(node, name)?;
-    prop.value_as_u32()
-        .context(ParsePropertyValueSnafu { name })
+    prop.parse_value().context(ParsePropertyValueSnafu { name })
 }
 
 fn find_prop_address_cells(node: &Node<'_, '_>) -> Result<usize, DevicetreeError> {
-    find_prop_u32(node, "#address-cells").map(CastInto::cast_into)
+    find_prop_as(node, "#address-cells").map(u32::cast_into)
 }
 
 fn find_prop_size_cells(node: &Node<'_, '_>) -> Result<usize, DevicetreeError> {
-    find_prop_u32(node, "#size-cells").map(CastInto::cast_into)
+    find_prop_as(node, "#size-cells").map(u32::cast_into)
 }
 
 fn find_prop_reg<'fdt>(
@@ -137,6 +139,6 @@ fn find_prop_reg<'fdt>(
 ) -> Result<RegIter<'fdt>, DevicetreeError> {
     let name = "reg";
     let prop = find_prop(node, name)?;
-    prop.value_as_reg(address_cells, size_cells)
+    prop.parse_value_as_reg(address_cells, size_cells)
         .context(ParsePropertyValueSnafu { name })
 }

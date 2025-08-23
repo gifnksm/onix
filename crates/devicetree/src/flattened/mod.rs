@@ -7,7 +7,10 @@
 //!
 //! [Devicetree Specification]: https://devicetree-specification.readthedocs.io/en/stable/flattened-format.html
 
-use alloc::sync::Weak;
+use alloc::{
+    collections::btree_map::BTreeMap,
+    sync::{Arc, Weak},
+};
 use core::{ptr, slice};
 
 use dataview::DataView;
@@ -156,12 +159,19 @@ impl<'fdt> Devicetree<'fdt> {
     }
 
     pub fn parse(&self) -> Result<parsed::Devicetree, ParseStructError> {
-        let root = self
-            .root_node()?
-            .parse(Weak::new(), self.string_block.as_ref())?;
+        let mut phandle_map = BTreeMap::new();
+        let root =
+            self.root_node()?
+                .parse(Weak::new(), self.string_block.as_ref(), &mut phandle_map)?;
+        #[expect(clippy::missing_panics_doc)]
+        let phandle_map = phandle_map
+            .into_iter()
+            .map(|(phandle, node)| (phandle, Weak::upgrade(&node).unwrap()))
+            .collect();
         Ok(parsed::Devicetree::new(
             root,
             self.string_block.as_ref().into(),
+            Arc::new(phandle_map),
         ))
     }
 }

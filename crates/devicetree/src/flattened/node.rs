@@ -38,6 +38,7 @@
 //! ```
 
 use alloc::{
+    collections::btree_map::BTreeMap,
     sync::{Arc, Weak},
     vec::Vec,
 };
@@ -47,7 +48,10 @@ use snafu::{IntoError as _, ResultExt as _, Snafu};
 use snafu_utils::Location;
 
 use super::struct_lexer::{StructLexer, StructLexerError, StructTokenWithData};
-use crate::{common::property::Property, parsed};
+use crate::{
+    common::{Phandle, property::Property},
+    parsed,
+};
 
 #[derive(Debug, Snafu)]
 pub enum ParseStructError {
@@ -243,15 +247,22 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
         &self,
         parent: Weak<parsed::node::NodeInner>,
         string_block: &[u8],
+        phandle_map: &mut BTreeMap<Phandle, Weak<parsed::node::NodeInner>>,
     ) -> Result<Arc<parsed::node::NodeInner>, ParseStructError> {
         fn init_node(
             new_node: &mut parsed::node::NodeInner,
             new_node_ref: &Weak<parsed::node::NodeInner>,
             node: &Node<'_, '_>,
             string_block: &[u8],
+            phandle_map: &mut BTreeMap<Phandle, Weak<parsed::node::NodeInner>>,
         ) -> Result<(), ParseStructError> {
             for prop in node.properties() {
                 let prop = prop?;
+                if prop.name() == "phandle"
+                    && let Ok(phandle) = prop.parse_value::<Phandle>()
+                {
+                    phandle_map.insert(phandle, Weak::clone(new_node_ref));
+                }
                 new_node.properties.push(parsed::node::PropertyInner {
                     name_range: if prop.name().is_empty() {
                         0..0
@@ -263,9 +274,11 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
             }
             for child in node.children() {
                 let child = child?;
-                new_node
-                    .children
-                    .push(child.parse(Weak::clone(new_node_ref), string_block)?);
+                new_node.children.push(child.parse(
+                    Weak::clone(new_node_ref),
+                    string_block,
+                    phandle_map,
+                )?);
             }
             Ok(())
         }
@@ -279,7 +292,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
                 parent,
                 children: Vec::new(),
             };
-            if let Err(e) = init_node(&mut node, node_ref, self, string_block) {
+            if let Err(e) = init_node(&mut node, node_ref, self, string_block, phandle_map) {
                 result = Err(e);
             }
             node
