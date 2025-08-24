@@ -32,7 +32,7 @@ unsafe extern "C" fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
 }
 
 unsafe extern "C" fn primary_cpu_reentry() -> ! {
-    crate::main()
+    crate::main(true)
 }
 
 static CPU_STARTED: AtomicBool = AtomicBool::new(false);
@@ -54,5 +54,5 @@ unsafe extern "C" fn secondary_cpu_entry(cpuid: usize) -> *mut u8 {
 
 unsafe extern "C" fn secondary_cpu_reentry() -> ! {
     CPU_STARTED.store(true, Ordering::Release);
-    crate::main()
+    crate::main(false)
 }

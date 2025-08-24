@@ -44,8 +44,9 @@ pub fn bss_addr_range() -> Range<usize> {
 }
 
 #[derive(Debug, Snafu)]
-pub enum MemoryLayoutError {
-    #[snafu(display("failed to parse devicetree: {source}"))]
+pub enum CreateMemoryLayoutError {
+    #[snafu(display("failed to parse devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     Devicetree {
         #[snafu(implicit)]
         location: Location,
@@ -61,7 +62,7 @@ pub struct MemoryLayout {
 }
 
 impl MemoryLayout {
-    pub fn new(dtb: &Devicetree) -> Result<Self, MemoryLayoutError> {
+    pub fn new(dtb: &Devicetree) -> Result<Self, CreateMemoryLayoutError> {
         let mut available_ranges = RangeSet::<128>::new();
         parse::insert_memory_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
         parse::remove_reserved_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
@@ -116,14 +117,34 @@ pub fn kernel_rw_range() -> Range<usize> {
     super::expand_to_page_boundaries(rw_start..rw_end)
 }
 
-pub fn update_kernel_page_table(layout: &MemoryLayout) -> Result<(), IdentityMapError> {
-    kernel_space::identity_map_range(kernel_rx_range(), MapPageFlags::RX)?;
-    kernel_space::identity_map_range(kernel_ro_range(), MapPageFlags::R)?;
-    kernel_space::identity_map_range(kernel_rw_range(), MapPageFlags::RW)?;
+#[derive(Debug, Snafu)]
+#[snafu(module)]
+pub enum UpdateKernelPageTableError {
+    #[snafu(display("failed to identity map kernel page table"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    IdentityMap {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: IdentityMapError,
+    },
+}
+
+pub fn update_kernel_page_table(layout: &MemoryLayout) -> Result<(), UpdateKernelPageTableError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::update_kernel_page_table_error::*;
+
+    kernel_space::identity_map_range(kernel_rx_range(), MapPageFlags::RX)
+        .context(IdentityMapSnafu)?;
+    kernel_space::identity_map_range(kernel_ro_range(), MapPageFlags::R)
+        .context(IdentityMapSnafu)?;
+    kernel_space::identity_map_range(kernel_rw_range(), MapPageFlags::RW)
+        .context(IdentityMapSnafu)?;
 
     let rw_ranges = &layout.available_ranges;
     for range in rw_ranges {
-        kernel_space::identity_map_range(range.clone(), MapPageFlags::RW)?;
+        kernel_space::identity_map_range(range.clone(), MapPageFlags::RW)
+            .context(IdentityMapSnafu)?;
     }
     Ok(())
 }

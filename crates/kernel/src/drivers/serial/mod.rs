@@ -31,14 +31,16 @@ struct SerialDevice {
 
 #[derive(Debug, Snafu)]
 pub enum SerialInitError {
-    #[snafu(display("failed to parse device tree: {source}"))]
+    #[snafu(display("failed to parse device tree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseDevicetree {
         #[snafu(source)]
         source: Box<ParseDevicetreeError>,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("failed to initialize driver: {source}"))]
+    #[snafu(display("failed to initialize driver"))]
+    #[snafu(provide(ref, priority, Location => location))]
     DriverInit {
         #[snafu(source)]
         source: Box<dyn Error>,

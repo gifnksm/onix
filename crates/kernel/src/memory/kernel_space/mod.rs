@@ -16,7 +16,11 @@ use sv39::{
 
 use self::stack::StackSlot;
 use super::PAGE_SIZE;
-use crate::{cpu, memory::Align as _, sync::spinlock::SpinMutex};
+use crate::{
+    cpu::{self, CpuMask},
+    memory::Align as _,
+    sync::spinlock::SpinMutex,
+};
 
 mod stack;
 
@@ -73,9 +77,25 @@ cpu_local! {
     static APPLIED: AtomicBool = AtomicBool::new(false);
 }
 
-pub fn init() -> Result<(), PageTableError> {
+#[derive(Debug, Snafu)]
+#[snafu(module)]
+pub enum KernelSpaceInitError {
+    #[snafu(display("failed to create kernel page table"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    CreateKernelPageTable {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: PageTableError,
+    },
+}
+
+pub fn init() -> Result<(), KernelSpaceInitError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::kernel_space_init_error::*;
+
     stack::init();
-    let kpgtbl = KernelPageTable::new()?;
+    let kpgtbl = KernelPageTable::new().context(CreateKernelPageTableSnafu)?;
     KERNEL_PAGE_TABLE.call_once(|| SpinMutex::new(kpgtbl));
     Ok(())
 }
@@ -98,9 +118,17 @@ pub fn apply() {
 }
 
 #[derive(Debug, Snafu)]
-pub enum SfenceAddrsError {
-    #[snafu(display("remote sfence.vma failed: {source}"))]
+#[snafu(module)]
+pub enum ApplyPageTableChangesError {
+    #[snafu(display(
+        "failed to remote sfence.vma for cpus `{cpu_mask:?}` with virtual address range `{start:#x}..{end:#x}`",
+        start = vaddr_range.start,
+        end = vaddr_range.end
+    ))]
+    #[snafu(provide(ref, priority, Location => location))]
     RemoteSfenceVma {
+        vaddr_range: Range<usize>,
+        cpu_mask: CpuMask,
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
@@ -108,7 +136,13 @@ pub enum SfenceAddrsError {
     },
 }
 
-fn sfence_addrs(asid: u16, vaddr_range: Range<usize>) -> Result<(), SfenceAddrsError> {
+fn apply_page_table_changes(
+    asid: u16,
+    vaddr_range: Range<usize>,
+) -> Result<(), ApplyPageTableChangesError> {
+    #[expect(clippy::wildcard_imports)]
+    use apply_page_table_changes_error::*;
+
     vaddr_range.clone().step_by(PAGE_SIZE).for_each(|vaddr| {
         asm::sfence_vma(vaddr, asid.into());
     });
@@ -121,28 +155,33 @@ fn sfence_addrs(asid: u16, vaddr_range: Range<usize>) -> Result<(), SfenceAddrsE
             vaddr_range.len(),
             asid.into(),
         )
-        .context(RemoteSfenceVmaSnafu)?;
+        .with_context(|_e| RemoteSfenceVmaSnafu {
+            cpu_mask,
+            vaddr_range: vaddr_range.clone(),
+        })?;
     }
 
     Ok(())
 }
 
 #[derive(Debug, Snafu)]
-#[snafu(context(suffix(IdentityMapSnafu)))]
+#[snafu(module)]
 pub enum IdentityMapError {
-    #[snafu(display("page table error: {source}"))]
-    PageTable {
+    #[snafu(display("failed to update kernel page table"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    UpdateKernelPageTable {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
         source: PageTableError,
     },
-    #[snafu(display("sfence failed: {source}"))]
-    SfenceAddrs {
+    #[snafu(display("failed to apply kernel page table changes"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    ApplyKernelPageTableChanges {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: SfenceAddrsError,
+        source: ApplyPageTableChangesError,
     },
 }
 
@@ -150,15 +189,18 @@ pub fn identity_map_range(
     range: Range<usize>,
     flags: MapPageFlags,
 ) -> Result<(), IdentityMapError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::identity_map_error::*;
+
     let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
     let asid = kpgtbl.asid();
     kpgtbl
         .identity_map_range(range.clone(), flags)
-        .context(PageTableIdentityMapSnafu)?;
+        .context(UpdateKernelPageTableSnafu)?;
     kpgtbl.unlock();
 
     if APPLIED.get().load(Ordering::Acquire) {
-        sfence_addrs(asid, range).context(SfenceAddrsIdentityMapSnafu)?;
+        apply_page_table_changes(asid, range).context(ApplyKernelPageTableChangesSnafu)?;
     }
 
     Ok(())
@@ -182,41 +224,47 @@ impl Drop for KernelStack {
 }
 
 #[derive(Debug, Snafu)]
-#[snafu(context(suffix(AllocateKernelStackSnafu)))]
+#[snafu(module)]
 pub enum AllocateKernelStackError {
     #[snafu(display("no stack slot available"))]
+    #[snafu(provide(ref, priority, Location => location))]
     NoStackSlot {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("page table error: {source}"))]
-    PageTable {
+    #[snafu(display("failed to update kernel page table"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    UpdateKernelPageTable {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
         source: PageTableError,
     },
-    #[snafu(display("sfence failed: {source}"))]
-    SfenceAddrs {
+    #[snafu(display("failed to apply kernel page table changes"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    ApplyKernelPageTableChanges {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: SfenceAddrsError,
+        source: ApplyPageTableChangesError,
     },
 }
 
 pub fn allocate_kernel_stack() -> Result<KernelStack, AllocateKernelStackError> {
-    let slot = StackSlot::allocate().context(NoStackSlotAllocateKernelStackSnafu)?;
+    #[expect(clippy::wildcard_imports)]
+    use self::allocate_kernel_stack_error::*;
+
+    let slot = StackSlot::allocate().context(NoStackSlotSnafu)?;
 
     let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
     let asid = kpgtbl.asid();
     kpgtbl
         .allocate_virt_addr_range(slot.range(), MapPageFlags::RW)
-        .context(PageTableAllocateKernelStackSnafu)?;
+        .context(UpdateKernelPageTableSnafu)?;
     kpgtbl.unlock();
 
     if APPLIED.get().load(Ordering::Acquire) {
-        sfence_addrs(asid, slot.range()).context(SfenceAddrsAllocateKernelStackSnafu)?;
+        apply_page_table_changes(asid, slot.range()).context(ApplyKernelPageTableChangesSnafu)?;
     }
 
     Ok(KernelStack { slot })

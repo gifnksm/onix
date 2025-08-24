@@ -305,6 +305,7 @@ dependencies = [
 name = "snafu-utils"
 version = "0.1.0"
 dependencies = [
+ "ansi-term",
  "snafu",
 ]
 

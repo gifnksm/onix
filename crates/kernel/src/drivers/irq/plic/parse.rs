@@ -33,11 +33,13 @@ impl fmt::Display for NodeNameFormat<'_> {
 #[derive(Debug, Snafu)]
 pub enum ParseDevicetreeError {
     #[snafu(display("missing `soc` node in devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingSocNode {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("failed to parse `{name}` node: {source}", name = NodeNameFormat { name, address }))]
+    #[snafu(display("failed to parse `{name}` node", name = NodeNameFormat { name, address }))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParsePlicNode {
         name: String,
         address: Option<String>,
@@ -50,7 +52,8 @@ pub enum ParseDevicetreeError {
 
 #[derive(Debug, Snafu)]
 pub enum ParsePlicNodeError {
-    #[snafu(display("failed to get property in `plic` node: {source}"))]
+    #[snafu(display("failed to get property in `plic` node"))]
+    #[snafu(provide(ref, priority, Location => location))]
     PropertyInNode {
         #[snafu(implicit)]
         location: Location,
@@ -58,11 +61,13 @@ pub enum ParsePlicNodeError {
         source: PropertyError,
     },
     #[snafu(display("`reg` property contains no addresses"))]
+    #[snafu(provide(ref, priority, Location => location))]
     NoAddressInReg {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("invalid specifier len"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidSpecifierLen {
         #[snafu(implicit)]
         location: Location,

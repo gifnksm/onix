@@ -35,11 +35,13 @@ impl fmt::Display for NodeNameFormat<'_> {
 #[derive(Debug, Snafu)]
 pub enum ParseDevicetreeError {
     #[snafu(display("missing `soc` node in devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingSocNode {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("failed to parse `{name}` node: {source}", name = NodeNameFormat { name, address }))]
+    #[snafu(display("failed to parse `{name}` node", name = NodeNameFormat { name, address }))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseSerialNode {
         name: String,
         address: Option<String>,
@@ -52,7 +54,8 @@ pub enum ParseDevicetreeError {
 
 #[derive(Debug, Snafu)]
 pub enum ParseSerialNodeError {
-    #[snafu(display("failed to get property in `serial` node: {source}"))]
+    #[snafu(display("failed to get property in `serial` node"))]
+    #[snafu(provide(ref, priority, Location => location))]
     Property {
         #[snafu(source)]
         source: PropertyError,
@@ -60,17 +63,20 @@ pub enum ParseSerialNodeError {
         location: Location,
     },
     #[snafu(display("`reg` property contains no addresses"))]
+    #[snafu(provide(ref, priority, Location => location))]
     NoAddressInReg {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("unsupporeted serial device: {path}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     UnsupportedDevice {
         path: String,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("no PLIC found for any interrupt"))]
+    #[snafu(provide(ref, priority, Location => location))]
     NoPlicFound {
         #[snafu(implicit)]
         location: Location,
@@ -109,7 +115,7 @@ fn find_plic_source(
         let source = plic.translate_interrupt_specifier(&interrupt.specifier);
         return Ok((plic, source));
     }
-    Err(NoPlicFoundSnafu.build())
+    NoPlicFoundSnafu.fail()
 }
 
 impl SerialDevice {
@@ -130,10 +136,10 @@ impl SerialDevice {
         let driver = if serial_node.is_compatible_to("ns16550a") {
             Box::new(unsafe { ns16550a::Driver::new(base_addr, size, uart_clock_frequency) })
         } else {
-            return Err(UnsupportedDeviceSnafu {
+            return UnsupportedDeviceSnafu {
                 path: serial_node.path(),
             }
-            .build());
+            .fail();
         };
         Ok(Self {
             plic,

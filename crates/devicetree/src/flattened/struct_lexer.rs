@@ -36,13 +36,15 @@ use crate::common::property::Property;
 #[derive(Debug, Clone, Snafu)]
 pub enum StructLexerError {
     #[snafu(display("invalid token: {token:#x} at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidToken {
         token: u32,
         offset: usize,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid string in structure block: {source} at offset {offset}"))]
+    #[snafu(display("invalid string in structure block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidStringInStructBlock {
         offset: usize,
         #[snafu(source)]
@@ -50,7 +52,8 @@ pub enum StructLexerError {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid string in strings block: {source} at offset {offset}"))]
+    #[snafu(display("invalid string in strings block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidStringInStringsBlock {
         offset: usize,
         #[snafu(source)]
@@ -59,18 +62,21 @@ pub enum StructLexerError {
         location: Location,
     },
     #[snafu(display("missing prop header at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingPropHeader {
         offset: usize,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("unexpected end of struct block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     UnexpectedEndOfStructBlock {
         offset: usize,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("unexpected end of strings block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     UnexpectedEndOfStringsBlock {
         offset: usize,
         #[snafu(implicit)]
@@ -194,11 +200,11 @@ impl<'fdt> StructLexer<'fdt, '_> {
             StructToken::NOP => StructTokenWithData::Nop,
             StructToken::END => StructTokenWithData::End,
             token => {
-                return Err(InvalidTokenSnafu {
+                return InvalidTokenSnafu {
                     token,
                     offset: self.offset,
                 }
-                .build());
+                .fail();
             }
         };
 

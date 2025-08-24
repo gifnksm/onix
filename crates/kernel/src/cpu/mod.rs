@@ -62,7 +62,8 @@ static ALL_CPUS: Once<Vec<Cpu>> = Once::new();
 
 #[derive(Debug, Snafu)]
 pub enum CpuInitError {
-    #[snafu(display("failed to parse devicetree: {source}"))]
+    #[snafu(display("failed to parse devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseDevicetree {
         #[snafu(source)]
         source: Box<ParseDevicetreeError>,

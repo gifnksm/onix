@@ -37,12 +37,14 @@ pub mod struct_lexer;
 #[derive(Debug, Snafu)]
 pub enum CreateError {
     #[snafu(display("invalid aligned address: {addr:#x}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidAddressAlignment {
         addr: usize,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid device tree header: {source}"))]
+    #[snafu(display("invalid device tree header"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidHeader {
         #[snafu(source)]
         source: HeaderValidationError,

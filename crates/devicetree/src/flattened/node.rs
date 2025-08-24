@@ -55,7 +55,8 @@ use crate::{
 
 #[derive(Debug, Snafu)]
 pub enum ParseStructError {
-    #[snafu(display("invalid struct token: {source}"))]
+    #[snafu(display("invalid struct token"))]
+    #[snafu(provide(ref, priority, Location => location))]
     Lexer {
         #[snafu(source)]
         source: StructLexerError,
@@ -63,16 +64,19 @@ pub enum ParseStructError {
         location: Location,
     },
     #[snafu(display("missing begin node token"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingBeginNodeToken {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("missing end node token"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingEndNodeToken {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("unexpected property token"))]
+    #[snafu(provide(ref, priority, Location => location))]
     UnexpectedPropToken {
         #[snafu(implicit)]
         location: Location,
@@ -97,7 +101,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
         let Some((StructTokenWithData::BeginNode { name, address }, properties_tokens)) =
             node_tokens.split_token().context(LexerSnafu)?
         else {
-            return Err(MissingBeginNodeTokenSnafu.build());
+            return MissingBeginNodeTokenSnafu.fail();
         };
 
         let mut children_tokens = properties_tokens.clone();
@@ -181,10 +185,10 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
                     return Ok(tks);
                 }
                 Some((StructTokenWithData::Prop { .. }, _)) => {
-                    return Err(UnexpectedPropTokenSnafu.build());
+                    return UnexpectedPropTokenSnafu.fail();
                 }
                 Some((StructTokenWithData::End, _)) | None => {
-                    return Err(MissingEndNodeTokenSnafu.build());
+                    return MissingEndNodeTokenSnafu.fail();
                 }
             }
         }
@@ -208,7 +212,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
             }
             Some((StructTokenWithData::BeginNode { .. }, _)) => Ok(Some(Node::new(child_tokens)?)),
             Some((StructTokenWithData::EndNode, _)) => Ok(None),
-            Some(_) | None => Err(MissingEndNodeTokenSnafu.build()),
+            Some(_) | None => MissingEndNodeTokenSnafu.fail(),
         }
     }
 
@@ -234,7 +238,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
                 }
                 Some((StructTokenWithData::EndNode, _)) => return Ok(None),
                 Some((StructTokenWithData::Prop { .. }, _)) => {
-                    return Err(UnexpectedPropTokenSnafu.build());
+                    return UnexpectedPropTokenSnafu.fail();
                 }
                 Some((StructTokenWithData::End, _)) | None => {
                     return Ok(None);
@@ -362,7 +366,7 @@ impl<'fdt, 'tree> Children<'fdt, 'tree> {
                     self.lexer = None;
                     return Ok(None);
                 }
-                Some(_) | None => return Err(MissingEndNodeTokenSnafu.build()),
+                Some(_) | None => return MissingEndNodeTokenSnafu.fail(),
             }
         }
     }

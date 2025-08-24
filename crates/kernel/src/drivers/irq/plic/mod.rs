@@ -22,13 +22,16 @@ static PLIC_DEVICES: Once<Vec<Arc<Plic>>> = Once::new();
 
 #[derive(Debug, Snafu)]
 pub enum PlicInitError {
+    #[snafu(display("failed to parse devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseDevicetree {
         #[snafu(source)]
         source: Box<ParseDevicetreeError>,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("identity map error: {source}"))]
+    #[snafu(display("identity map error"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MapPage {
         #[snafu(source)]
         source: IdentityMapError,

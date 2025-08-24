@@ -29,11 +29,13 @@ impl fmt::Display for NodeNameFormat<'_> {
 #[derive(Debug, Snafu)]
 pub enum ParseDevicetreeError {
     #[snafu(display("missing `cpus` node in devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingCpusNode {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("failed to parse `{}` node: {source}", NodeNameFormat { name, address }))]
+    #[snafu(display("failed to parse `{}` node", NodeNameFormat { name, address }))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseCpuNode {
         name: String,
         address: Option<String>,
@@ -64,6 +66,7 @@ pub(super) fn parse(dtree: &Devicetree) -> Result<Vec<Cpu>, Box<ParseDevicetreeE
 #[derive(Debug, Snafu)]
 pub enum ParseCpuError {
     #[snafu(display("{source}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     Property {
         #[snafu(source)]
         source: PropertyError,
@@ -71,12 +74,13 @@ pub enum ParseCpuError {
         location: Location,
     },
     #[snafu(display("`reg` property contains no addresses"))]
+    #[snafu(provide(ref, priority, Location => location))]
     NoAddressInReg {
         #[snafu(implicit)]
         location: Location,
     },
-
     #[snafu(display("`reg` property contains too many addresses"))]
+    #[snafu(provide(ref, priority, Location => location))]
     TooManyAddressesReg {
         #[snafu(implicit)]
         location: Location,

@@ -58,6 +58,7 @@ const STRUCTURE_ALIGNMENT: usize = 4;
 #[derive(Debug, Snafu)]
 pub enum HeaderValidationError {
     #[snafu(display("invalid magic number: {magic}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidMagic {
         magic: u32,
         #[snafu(implicit)]
@@ -67,6 +68,7 @@ pub enum HeaderValidationError {
         "incompatible device tree version: version={version}, \
          last_comp_version={last_comp_version}"
     ))]
+    #[snafu(provide(ref, priority, Location => location))]
     IncompatibleVersion {
         version: u32,
         last_comp_version: u32,
@@ -78,6 +80,7 @@ pub enum HeaderValidationError {
          off_dt_strings={off_dt_strings:#x}, off_mem_rsvmap={off_mem_rsvmap:#x}, \
          size_dt_strings={size_dt_strings:#x}, size_dt_struct={size_dt_struct:#x}"
     ))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidLayout {
         totalsize: u32,
         off_dt_struct: u32,
@@ -89,13 +92,15 @@ pub enum HeaderValidationError {
         location: Location,
     },
     #[snafu(display("invalid token: {token:#x} at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidToken {
         token: u32,
         offset: usize,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid string in structure block: {source} at offset {offset}"))]
+    #[snafu(display("invalid string in structure block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidStringInStructBlock {
         offset: usize,
         #[snafu(source)]
@@ -103,7 +108,8 @@ pub enum HeaderValidationError {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid string in strings block: {source} at offset {offset}"))]
+    #[snafu(display("invalid string in strings block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidStringInStringsBlock {
         offset: usize,
         #[snafu(source)]
@@ -112,18 +118,21 @@ pub enum HeaderValidationError {
         location: Location,
     },
     #[snafu(display("missing prop header at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingPropHeader {
         offset: usize,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("unexpected end of struct block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     UnexpectedEndOfStructBlock {
         offset: usize,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("unexpected end of strings block at offset {offset}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     UnexpectedEndOfStringsBlock {
         offset: usize,
         #[snafu(implicit)]

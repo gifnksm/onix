@@ -1,7 +1,12 @@
+#![feature(error_generic_member_access)]
 #![no_std]
 
-use core::fmt;
+use core::{
+    error::{self, Error},
+    fmt,
+};
 
+use ansi_term::{Color, WithFg};
 use snafu::GenerateImplicitData;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,5 +35,51 @@ impl fmt::Debug for Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
+    }
+}
+
+pub struct Report<E> {
+    error: E,
+}
+
+impl<E> fmt::Debug for Report<E>
+where
+    E: Error,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<E> fmt::Display for Report<E>
+where
+    E: Error,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "Error: {}", WithFg::new(Color::Red, &self.error))?;
+        if let Some(loc) = error::request_ref::<Location>(&self.error) {
+            writeln!(f, "  at {}", WithFg::new(Color::DarkGray, loc))?;
+        }
+        let mut source = self.error.source();
+        if source.is_some() {
+            writeln!(f)?;
+            writeln!(f, "Caused by:")?;
+        }
+        let mut index = 0;
+        while let Some(s) = source {
+            writeln!(f, "{index:4}: {}", WithFg::new(Color::Red, s))?;
+            if let Some(loc) = error::request_ref::<Location>(s) {
+                writeln!(f, "      at {}", WithFg::new(Color::DarkGray, loc))?;
+            }
+            source = s.source();
+            index += 1;
+        }
+        Ok(())
+    }
+}
+
+impl<E> Report<E> {
+    pub fn new(error: E) -> Self {
+        Self { error }
     }
 }

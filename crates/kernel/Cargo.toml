@@ -29,7 +29,7 @@ range-set.workspace = true
 riscv.workspace = true
 riscv-utils.workspace = true
 sbi.workspace = true
-snafu.workspace = true
+snafu = { workspace = true }
 snafu-utils.workspace = true
 spin.workspace = true
 sv39.workspace = true

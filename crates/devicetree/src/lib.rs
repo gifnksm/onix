@@ -8,6 +8,7 @@
 //! [Devicetree Specification]: https://devicetree-specification.readthedocs.io/en/stable/flattened-format.html
 
 #![feature(substr_range)]
+#![feature(error_generic_member_access)]
 #![no_std]
 
 extern crate alloc;

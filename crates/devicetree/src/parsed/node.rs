@@ -111,12 +111,14 @@ impl Node {
 #[derive(Debug, Snafu)]
 pub enum PropertyError {
     #[snafu(display("missing property `{name}`", name = name))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingProperty {
         name: String,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("failed to parse property `{name}`: {source}", name = name))]
+    #[snafu(display("failed to parse property `{name}`", name = name))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseProperty {
         name: String,
         #[snafu(source)]
@@ -125,16 +127,19 @@ pub enum PropertyError {
         location: Location,
     },
     #[snafu(display("missing parent node"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingParentNode {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("missing interrupt parent node"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingInterruptParentNode {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("invalid phandle `{phandle}`"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidPhandle {
         phandle: Phandle,
         #[snafu(implicit)]
@@ -198,7 +203,7 @@ impl Node {
         {
             return Ok(value);
         }
-        Err(MissingPropertySnafu { name }.build())
+        MissingPropertySnafu { name }.fail()
     }
 
     pub fn phandle(&self) -> Result<Phandle, PropertyError> {
@@ -437,9 +442,9 @@ impl Node {
             return Ok(interrupts);
         }
 
-        Err(MissingPropertySnafu {
+        MissingPropertySnafu {
             name: "interrupts or interrupts-extended",
         }
-        .build())
+        .fail()
     }
 }

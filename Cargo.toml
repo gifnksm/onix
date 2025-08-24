@@ -30,7 +30,7 @@ riscv = { version = "0.14.0", features = ["s-mode"] }
 riscv-utils = { path = "crates/riscv-utils" }
 sbi = { path = "crates/sbi" }
 sbi-sys = { path = "crates/sbi-sys" }
-snafu = { version = "0.8.6", default-features = false, features = ["rust_1_81"] }
+snafu = { version = "0.8.6", default-features = false, features = ["rust_1_81", "unstable-provider-api"] }
 snafu-utils = { path = "crates/snafu-utils" }
 spin = "0.10.0"
 sv39 = { path = "crates/sv39" }

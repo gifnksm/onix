@@ -1,4 +1,5 @@
 #![feature(allocator_api)]
+#![feature(error_generic_member_access)]
 #![cfg_attr(not(test), no_std)]
 
 extern crate alloc;
@@ -33,6 +34,7 @@ const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 #[derive(Debug, Snafu)]
 pub enum PageTableError {
     #[snafu(display("failed to allocate new page table"))]
+    #[snafu(provide(ref, priority, Location => location))]
     AllocPageTable {
         #[snafu(source)]
         source: AllocError,
@@ -40,17 +42,20 @@ pub enum PageTableError {
         location: Location,
     },
     #[snafu(display("failed to allocate new page table entry, layout: {layout:?}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     AllocPage {
         layout: Layout,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("attempted to map a page to an already mapped address"))]
+    #[snafu(provide(ref, priority, Location => location))]
     AlreadyMapped {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("invalid flags for mapping page: {flags:?}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidMapFlags {
         flags: MapPageFlags,
         #[snafu(implicit)]

@@ -56,7 +56,8 @@ pub struct TaskSharedData {
 
 #[derive(Debug, Snafu)]
 pub enum TaskCreateError {
-    #[snafu(display("failed to create kernel stack: {source}"))]
+    #[snafu(display("failed to create kernel stack"))]
+    #[snafu(provide(ref, priority, Location => location))]
     KernelStack {
         #[snafu(implicit)]
         location: Location,

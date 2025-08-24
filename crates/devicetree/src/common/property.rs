@@ -45,11 +45,13 @@ use super::Phandle;
 #[derive(Debug, Snafu)]
 pub enum ParsePropertyValueError {
     #[snafu(display("missing nul in <string>"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingNulInString {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid <string>: {source}"))]
+    #[snafu(display("invalid <string>"))]
+    #[snafu(provide(ref, priority, Location => location))]
     Utf8 {
         #[snafu(implicit)]
         location: Location,
@@ -57,6 +59,7 @@ pub enum ParsePropertyValueError {
         source: Utf8Error,
     },
     #[snafu(display("invalid value length. expected: {expected}, actual: {actual}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidValueLength {
         expected: usize,
         actual: usize,
@@ -66,6 +69,7 @@ pub enum ParsePropertyValueError {
         source: array::TryFromSliceError,
     },
     #[snafu(display("value length is not multiple of `{unit}`: length: {len}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ValueLengthIsNotMultipleOf {
         unit: usize,
         len: usize,
@@ -73,28 +77,33 @@ pub enum ParsePropertyValueError {
         location: Location,
     },
     #[snafu(display("value length is too small"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ValueLengthIsTooSmall {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("value length is too large"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ValueLengthIsTooLarge {
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("invalid `#address-cells`: {address_cells}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidAddressCells {
         address_cells: usize,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("invalid `#size-cells`: {size_cells}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     InvalidSizeCells {
         size_cells: usize,
         #[snafu(implicit)]
         location: Location,
     },
     #[snafu(display("value cannot be parsed: {left}, {right}"))]
+    #[snafu(provide(ref, priority, Location => location))]
     Either {
         left: Box<ParsePropertyValueError>,
         right: Box<ParsePropertyValueError>,
@@ -282,11 +291,11 @@ where
             Ok(value) => return Ok(Self::Right(value)),
             Err(e) => e,
         };
-        Err(EitherSnafu {
+        EitherSnafu {
             left: Box::new(left),
             right: Box::new(right),
         }
-        .build())
+        .fail()
     }
 }
 

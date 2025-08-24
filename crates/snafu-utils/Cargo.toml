@@ -11,6 +11,7 @@ keywords.workspace = true
 publish.workspace = true
 
 [dependencies]
+ansi-term.workspace = true
 snafu.workspace = true
 
 [lints]

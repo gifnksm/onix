@@ -67,7 +67,8 @@ pub fn dtb_range(dtb: &Devicetree<'_>) -> Range<usize> {
 
 #[derive(Debug, Snafu)]
 pub enum DevicetreeError {
-    #[snafu(display("invalid struct: {source}"))]
+    #[snafu(display("invalid struct"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParseStruct {
         #[snafu(implicit)]
         location: Location,
@@ -75,12 +76,14 @@ pub enum DevicetreeError {
         source: ParseStructError,
     },
     #[snafu(display("missing `{name}` property"))]
+    #[snafu(provide(ref, priority, Location => location))]
     MissingProperty {
         name: &'static str,
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("invalid property `{name}`: {source}"))]
+    #[snafu(display("invalid property `{name}`"))]
+    #[snafu(provide(ref, priority, Location => location))]
     ParsePropertyValue {
         name: &'static str,
         #[snafu(implicit)]
@@ -113,7 +116,7 @@ fn find_prop<'fdt>(
             return Ok(prop);
         }
     }
-    Err(MissingPropertySnafu { name }.build())
+    MissingPropertySnafu { name }.fail()
 }
 
 fn find_prop_as<'fdt, T>(node: &Node<'fdt, '_>, name: &'static str) -> Result<T, DevicetreeError>
