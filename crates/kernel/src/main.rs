@@ -365,13 +365,26 @@ extern "C" fn rx_task(arg: *mut c_void) -> ! {
     let state: Arc<TaskState> = unsafe { Arc::from_raw(arg.cast()) };
     let task = scheduler::current_task();
 
+    let mut handled = 0;
+    let mut total_dur = Duration::ZERO;
+    let mut min_dur = Duration::MAX;
+    let mut max_dur = Duration::ZERO;
     let mut queue = state.queue.lock();
     loop {
-        if let Some((task_id, i, time)) = queue.pop_front() {
+        if let Some((_task_id, i, time)) = queue.pop_front() {
             state.message_received.notify_all();
             queue.unlock();
+            let dur = time.elapsed();
+            min_dur = min_dur.min(dur);
+            max_dur = max_dur.max(dur);
+            total_dur += dur;
+            handled += 1;
+            let avg_dur = total_dur / handled;
             if (i + 1) % 50 == 0 {
-                info!("received ({task_id}, {i}, {:?})", time.elapsed());
+                info!(
+                    "received, handled={handled}, avg_dur={avg_dur:?}, min_dur={min_dur:?}, \
+                     max_dur={max_dur:?}"
+                );
             }
             let mut shared = task.shared.lock();
             scheduler::yield_execution(&mut shared);
