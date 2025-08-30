@@ -1,15 +1,12 @@
 use core::ops::Range;
 
-use devicetree::flattened::Devicetree;
+use devicetree::parsed::{Devicetree, node::PropertyError};
 use range_set::RangeSet;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
 use sv39::MapPageFlags;
 
-use self::parse::DevicetreeError;
 use super::kernel_space::{self, IdentityMapError};
-
-mod parse;
 
 unsafe extern "C" {
     #[link_name = "__onix_kernel_start"]
@@ -44,46 +41,53 @@ pub fn bss_addr_range() -> Range<usize> {
 }
 
 #[derive(Debug, Snafu)]
-pub enum CreateMemoryLayoutError {
-    #[snafu(display("failed to parse devicetree"))]
+pub enum CreateHeapLayoutError {
+    #[snafu(display("failed to parse devicetree property"))]
     #[snafu(provide(ref, priority, Location => location))]
-    Devicetree {
+    DevicetreeProperty {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: DevicetreeError,
+        source: PropertyError,
     },
 }
 
 #[derive(Debug)]
-pub struct MemoryLayout {
+pub struct HeapLayout {
     available_ranges: RangeSet<128>,
-    dtb_range: Range<usize>,
 }
 
-impl MemoryLayout {
-    pub fn new(dtb: &Devicetree) -> Result<Self, CreateMemoryLayoutError> {
+impl HeapLayout {
+    pub fn new(dtree: &Devicetree) -> Result<Self, CreateHeapLayoutError> {
         let mut available_ranges = RangeSet::<128>::new();
-        parse::insert_memory_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
-        parse::remove_reserved_ranges(dtb, &mut available_ranges).context(DevicetreeSnafu)?;
+
+        let root = dtree.root_node();
+        let memory_nodes = root.children().filter(|node| node.name() == "memory");
+        for node in memory_nodes {
+            for reg in node.reg().context(DevicetreePropertySnafu)? {
+                available_ranges.insert(reg.range());
+            }
+        }
+
+        for rsv in dtree.mem_rsvmap() {
+            available_ranges.remove(rsv.range());
+        }
+        if let Some(reserved_memory_node) = dtree.find_node_by_path("/reserved-memory") {
+            for child in reserved_memory_node.children() {
+                for reg in child.reg().context(DevicetreePropertySnafu)? {
+                    available_ranges.remove(reg.range());
+                }
+            }
+        }
         available_ranges.remove(kernel_reserved_range());
 
-        let dtb_range = parse::dtb_range(dtb);
-        Ok(Self {
-            available_ranges,
-            dtb_range,
-        })
+        Ok(Self { available_ranges })
     }
 
-    pub fn initial_heap_ranges(&self) -> RangeSet<128> {
+    pub fn heap_ranges(&self) -> RangeSet<128> {
         let mut heap_ranges = self.available_ranges.clone();
         heap_ranges.remove(kernel_boot_stack_range());
-        heap_ranges.remove(self.dtb_range.clone());
         heap_ranges
-    }
-
-    pub fn dtb_range(&self) -> Range<usize> {
-        self.dtb_range.clone()
     }
 }
 
@@ -130,7 +134,7 @@ pub enum UpdateKernelPageTableError {
     },
 }
 
-pub fn update_kernel_page_table(layout: &MemoryLayout) -> Result<(), UpdateKernelPageTableError> {
+pub fn update_kernel_page_table(layout: &HeapLayout) -> Result<(), UpdateKernelPageTableError> {
     #[expect(clippy::wildcard_imports)]
     use self::update_kernel_page_table_error::*;
 

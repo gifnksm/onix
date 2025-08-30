@@ -21,8 +21,7 @@ use spin::Once;
 use self::{
     cpu::Cpuid,
     interrupt::timer::{self, Instant},
-    main_error::{InitPlicDriversSnafu, InitSerialDriversSnafu},
-    memory::layout::MemoryLayout,
+    memory::layout::HeapLayout,
     sync::spinlock::{SpinMutex, SpinMutexCondVar},
     task::{TaskId, scheduler},
 };
@@ -73,13 +72,31 @@ where
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 enum PrimaryCpuEntryError {
-    #[snafu(display("failed to initialize heap and devicetree"))]
+    #[snafu(display("failed to create devicetree at physical address {dtb_pa:#x}"))]
     #[snafu(provide(ref, priority, Location => location))]
-    InitHeapAndDevicetree {
+    CreateDevicetree {
+        dtb_pa: usize,
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: InitHeapAndDevicetreeError,
+        source: devicetree::flattened::CreateError,
+    },
+    #[snafu(display("failed to parse devicetree at physical address {dtb_pa:#x}"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    ParseDevicetree {
+        dtb_pa: usize,
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: devicetree::flattened::node::ParseStructError,
+    },
+    #[snafu(display("failed to compute heap layout from devicetree"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    ComputeHeapLayout {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: memory::layout::CreateHeapLayoutError,
     },
     #[snafu(display("failed to initialize CPU table"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -129,16 +146,25 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     call_with_panic_report(
         "error during initialization of primary CPU",
         || -> Result<_, PrimaryCpuEntryError> {
-            let memory_layout =
-                init_heap_and_devicetree(dtb_pa).context(InitHeapAndDevicetreeSnafu)?;
-            let dtree = DEVICETREE.get().unwrap();
+            let dtree = DEVICETREE.try_call_once(|| {
+                unsafe { devicetree::flattened::Devicetree::from_addr(dtb_pa) }
+                    .context(CreateDevicetreeSnafu { dtb_pa })?
+                    .parse()
+                    .context(ParseDevicetreeSnafu { dtb_pa })
+            })?;
+
+            let heap_layout = HeapLayout::new(dtree).context(ComputeHeapLayoutSnafu)?;
+            unsafe {
+                memory::allocator::add_heap_ranges(heap_layout.heap_ranges());
+            }
+
             cpu::init(dtree).context(InitCpuSnafu)?;
             cpu_local::init();
             cpu_local::apply(cpuid);
             cpu::set_current_cpuid(cpuid);
             interrupt::init(cpuid);
             memory::kernel_space::init().context(InitKernelSpaceSnafu)?;
-            memory::layout::update_kernel_page_table(&memory_layout)
+            memory::layout::update_kernel_page_table(&heap_layout)
                 .context(UpdateKernelPageTableSnafu)?;
             memory::kernel_space::apply();
 
@@ -207,6 +233,9 @@ enum MainError {
 }
 
 fn main(is_primary: bool) -> ! {
+    #[expect(clippy::wildcard_imports)]
+    use self::main_error::*;
+
     static INIT_COMPLETED: AtomicBool = AtomicBool::new(false);
 
     call_with_panic_report(
@@ -241,66 +270,6 @@ fn main(is_primary: bool) -> ! {
             task::scheduler::start()
         },
     )
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-enum InitHeapAndDevicetreeError {
-    #[snafu(display("failed to create devicetree at physical address {dtb_pa:#x}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    CreateDevicetree {
-        dtb_pa: usize,
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: devicetree::flattened::CreateError,
-    },
-    #[snafu(display(
-        "failed to compute memory layout from devicetree at physical address {dtb_pa:#x}"
-    ))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ComputeMemoryLayout {
-        dtb_pa: usize,
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: memory::layout::CreateMemoryLayoutError,
-    },
-    #[snafu(display("failed to parse devicetree at physical address {dtb_pa:#x}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ParseDevicetree {
-        dtb_pa: usize,
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: devicetree::flattened::node::ParseStructError,
-    },
-}
-
-fn init_heap_and_devicetree(dtb_pa: usize) -> Result<MemoryLayout, InitHeapAndDevicetreeError> {
-    #[expect(clippy::wildcard_imports)]
-    use self::init_heap_and_devicetree_error::*;
-
-    let dtb = unsafe { devicetree::flattened::Devicetree::from_addr(dtb_pa) }
-        .context(CreateDevicetreeSnafu { dtb_pa })?;
-    let memory_layout = MemoryLayout::new(&dtb).context(ComputeMemoryLayoutSnafu { dtb_pa })?;
-
-    // initialize heap
-    unsafe {
-        memory::allocator::add_heap_ranges(memory_layout.initial_heap_ranges());
-    }
-
-    // parse devicetree blob
-    DEVICETREE
-        .try_call_once(|| dtb.parse())
-        .context(ParseDevicetreeSnafu { dtb_pa })?;
-
-    // reuse devicetree blob range as heap
-    unsafe {
-        memory::allocator::add_heap_ranges([memory_layout.dtb_range()]);
-    }
-
-    Ok(memory_layout)
 }
 
 unsafe fn start_secondary_cpus() {

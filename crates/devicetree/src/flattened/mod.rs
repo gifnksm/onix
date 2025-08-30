@@ -174,6 +174,7 @@ impl<'fdt> Devicetree<'fdt> {
             root,
             self.string_block.as_ref().into(),
             Arc::new(phandle_map),
+            self.mem_rsvmap.to_vec(),
         ))
     }
 }

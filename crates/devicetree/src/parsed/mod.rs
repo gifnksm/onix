@@ -1,8 +1,8 @@
-use alloc::{collections::btree_map::BTreeMap, sync::Arc};
+use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use core::fmt;
 
 use self::node::{Node, NodeInner};
-use crate::common::Phandle;
+use crate::{common::Phandle, flattened::layout::ReserveEntry};
 
 pub mod node;
 
@@ -14,6 +14,7 @@ pub(crate) struct DevicetreeInner {
     root_node: Arc<NodeInner>,
     string_block: Arc<[u8]>,
     phandle_map: Arc<BTreeMap<Phandle, Arc<NodeInner>>>,
+    mem_rsvmap: Vec<ReserveEntry>,
 }
 
 impl Devicetree {
@@ -21,12 +22,14 @@ impl Devicetree {
         root_node: Arc<NodeInner>,
         string_block: Arc<[u8]>,
         phandle_map: Arc<BTreeMap<Phandle, Arc<NodeInner>>>,
+        mem_rsvmap: Vec<ReserveEntry>,
     ) -> Self {
         Self {
             inner: Arc::new(DevicetreeInner {
                 root_node,
                 string_block,
                 phandle_map,
+                mem_rsvmap,
             }),
         }
     }
@@ -37,6 +40,11 @@ impl Devicetree {
             inner: Arc::clone(&self.inner.root_node),
             tree: Arc::clone(&self.inner),
         }
+    }
+
+    #[must_use]
+    pub fn mem_rsvmap(&self) -> &[ReserveEntry] {
+        &self.inner.mem_rsvmap
     }
 
     #[must_use]
