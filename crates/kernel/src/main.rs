@@ -119,6 +119,8 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     #[expect(clippy::wildcard_imports)]
     use self::primary_cpu_entry_error::*;
 
+    memory::allocator::init();
+
     println!();
     println!();
     println!("Onix v{ONIX_VERSION}");

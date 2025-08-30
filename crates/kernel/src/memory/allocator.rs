@@ -1,13 +1,16 @@
 use core::{
     alloc::{GlobalAlloc, Layout},
+    cell::UnsafeCell,
+    mem::MaybeUninit,
     ops::Range,
     ptr,
 };
 
 use allocator::fixed_size_block::FixedSizeBlockAllocator;
 use range_set::RangeSet;
+use spin::Once;
 
-use crate::sync::spinlock::SpinMutex;
+use crate::{memory::PAGE_SIZE, sync::spinlock::SpinMutex};
 
 #[global_allocator]
 static ALLOCATOR: LockedKernelAllocator = LockedKernelAllocator::new();
@@ -62,6 +65,21 @@ unsafe impl GlobalAlloc for LockedKernelAllocator {
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         unsafe { self.0.lock().deallocate(ptr, layout) }
     }
+}
+
+pub fn init() {
+    #[repr(align(4096))]
+    struct BootHeap([UnsafeCell<MaybeUninit<u8>>; 128 * PAGE_SIZE]);
+    unsafe impl Sync for BootHeap {}
+
+    static BOOT_HEAP: BootHeap =
+        BootHeap([const { UnsafeCell::new(MaybeUninit::uninit()) }; 128 * PAGE_SIZE]);
+    static INITIALIZE: Once = Once::new();
+
+    INITIALIZE.call_once(|| unsafe {
+        let range = BOOT_HEAP.0.as_ptr_range();
+        add_heap_ranges([{ range.start.expose_provenance()..range.end.expose_provenance() }]);
+    });
 }
 
 pub unsafe fn add_heap_ranges<I>(ranges: I)
