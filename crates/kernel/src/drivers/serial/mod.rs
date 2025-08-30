@@ -30,6 +30,7 @@ struct SerialDevice {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum SerialInitError {
     #[snafu(display("failed to parse device tree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -54,6 +55,9 @@ const SERIAL_THRESHOLD: u32 = 0;
 static SERIAL_DRIVERS: Once<Vec<Arc<SpinMutex<SerialDevice>>>> = Once::new();
 
 pub fn init(dtree: &Devicetree) -> Result<(), Box<SerialInitError>> {
+    #[expect(clippy::wildcard_imports)]
+    use self::serial_init_error::*;
+
     let mut drivers = parse::parse(dtree).context(ParseDevicetreeSnafu)?;
     for driver_ref in &mut drivers {
         let mut driver = driver_ref.lock();

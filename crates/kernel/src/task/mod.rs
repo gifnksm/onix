@@ -55,6 +55,7 @@ pub struct TaskSharedData {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum TaskCreateError {
     #[snafu(display("failed to create kernel stack"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -78,6 +79,9 @@ impl Task {
         entry: extern "C" fn(*mut c_void) -> !,
         arg: *mut c_void,
     ) -> Result<Arc<Self>, TaskCreateError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::task_create_error::*;
+
         let kernel_stack = kernel_space::allocate_kernel_stack().context(KernelStackSnafu)?;
         let sched_context = Context::new(&kernel_stack, entry, arg);
         let task = Arc::new_cyclic(|task| Self {

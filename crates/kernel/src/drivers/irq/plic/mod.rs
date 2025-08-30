@@ -21,6 +21,7 @@ mod parse;
 static PLIC_DEVICES: Once<Vec<Arc<Plic>>> = Once::new();
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum PlicInitError {
     #[snafu(display("failed to parse devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -41,6 +42,9 @@ pub enum PlicInitError {
 }
 
 pub fn init(dtree: &Devicetree) -> Result<(), Box<PlicInitError>> {
+    #[expect(clippy::wildcard_imports)]
+    use plic_init_error::*;
+
     let plic_devices = parse::parse(dtree).context(ParseDevicetreeSnafu)?;
     for plic in &plic_devices {
         let mmio = plic.mmio.lock();

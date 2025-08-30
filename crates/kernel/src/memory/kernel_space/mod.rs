@@ -141,7 +141,7 @@ fn apply_page_table_changes(
     vaddr_range: Range<usize>,
 ) -> Result<(), ApplyPageTableChangesError> {
     #[expect(clippy::wildcard_imports)]
-    use apply_page_table_changes_error::*;
+    use self::apply_page_table_changes_error::*;
 
     vaddr_range.clone().step_by(PAGE_SIZE).for_each(|vaddr| {
         asm::sfence_vma(vaddr, asid.into());

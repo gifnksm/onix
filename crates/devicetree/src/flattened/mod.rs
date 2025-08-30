@@ -35,6 +35,7 @@ pub mod struct_lexer;
 /// tokenizing or interpreting a FDT blob, such as invalid alignment, magic
 /// number, version incompatibility, malformed layout, or invalid strings.
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum CreateError {
     #[snafu(display("invalid aligned address: {addr:#x}"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -78,6 +79,9 @@ impl Devicetree<'static> {
     ///
     /// Returns an error if the FDT is invalid or the address is not aligned.
     pub unsafe fn from_addr(addr: usize) -> Result<Self, CreateError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::create_error::*;
+
         ensure!(
             Header::is_valid_header_addr(addr),
             InvalidAddressAlignmentSnafu { addr }

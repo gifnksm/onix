@@ -235,7 +235,10 @@ where
     pub(super) fn get_or_insert_next_level_table(
         &mut self,
     ) -> Result<PageTableRef<&mut PageTable>, PageTableError> {
-        ensure!(!self.is_leaf(), super::AlreadyMappedSnafu);
+        #[expect(clippy::wildcard_imports)]
+        use super::page_table_error::*;
+
+        ensure!(!self.is_leaf(), AlreadyMappedSnafu);
 
         if !self.is_valid() {
             let next_level_pt = PageTable::try_allocate()?;
@@ -249,7 +252,10 @@ where
         &mut self,
         table: Box<PageTable>,
     ) -> Result<(), PageTableError> {
-        ensure!(!self.is_valid(), super::AlreadyMappedSnafu);
+        #[expect(clippy::wildcard_imports)]
+        use super::page_table_error::*;
+
+        ensure!(!self.is_valid(), AlreadyMappedSnafu);
         let table = Box::leak(table);
         let flags = PageFlags::V;
         let phys_page_num = PhysAddr::from_ptr(table).page_num();
@@ -258,15 +264,18 @@ where
     }
 
     pub(super) fn allocate_page(&mut self, flags: MapPageFlags) -> Result<(), PageTableError> {
+        #[expect(clippy::wildcard_imports)]
+        use super::page_table_error::*;
+
         ensure!(
             !flags.is_empty() && flags & MapPageFlags::URWX == flags,
-            super::InvalidMapFlagsSnafu { flags }
+            InvalidMapFlagsSnafu { flags }
         );
-        ensure!(!self.is_valid(), super::AlreadyMappedSnafu);
+        ensure!(!self.is_valid(), AlreadyMappedSnafu);
 
         let layout = self.page_layout();
         let page = unsafe { alloc::alloc::alloc_zeroed(layout) };
-        ensure!(!page.is_null(), super::AllocPageSnafu { layout });
+        ensure!(!page.is_null(), AllocPageSnafu { layout });
 
         let page_flags = PageFlags::V | PageFlags::from(flags);
         let phys_page_num = PhysAddr::from_ptr(page).page_num();
@@ -279,11 +288,14 @@ where
         phys_page_num: PhysPageNum,
         flags: MapPageFlags,
     ) -> Result<(), PageTableError> {
+        #[expect(clippy::wildcard_imports)]
+        use super::page_table_error::*;
+
         ensure!(
             !flags.is_empty() && flags & MapPageFlags::URWX == flags,
-            super::InvalidMapFlagsSnafu { flags }
+            InvalidMapFlagsSnafu { flags }
         );
-        ensure!(!self.is_valid(), super::AlreadyMappedSnafu);
+        ensure!(!self.is_valid(), AlreadyMappedSnafu);
 
         let page_flags = PageFlags::V | PageFlags::from(flags);
         self.update(phys_page_num, page_flags);

@@ -32,6 +32,7 @@ const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 
 /// Errors that can occur during page table operations.
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum PageTableError {
     #[snafu(display("failed to allocate new page table"))]
     #[snafu(provide(ref, priority, Location => location))]

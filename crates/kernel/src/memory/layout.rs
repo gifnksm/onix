@@ -41,6 +41,7 @@ pub fn bss_addr_range() -> Range<usize> {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum CreateHeapLayoutError {
     #[snafu(display("failed to parse devicetree property"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -59,6 +60,9 @@ pub struct HeapLayout {
 
 impl HeapLayout {
     pub fn new(dtree: &Devicetree) -> Result<Self, CreateHeapLayoutError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::create_heap_layout_error::*;
+
         let mut available_ranges = RangeSet::<128>::new();
 
         let root = dtree.root_node();

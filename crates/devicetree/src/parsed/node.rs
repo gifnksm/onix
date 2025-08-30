@@ -109,6 +109,7 @@ impl Node {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum PropertyError {
     #[snafu(display("missing property `{name}`", name = name))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -157,6 +158,9 @@ impl Node {
     where
         T: ParsePropertyValue<'a>,
     {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         self.find_property(name)
             .map(|prop| prop.parse_value::<T>())
             .transpose()
@@ -179,6 +183,9 @@ impl Node {
     }
 
     pub fn fetch_property(&self, name: &str) -> Result<Property<'_>, PropertyError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         self.find_property(name)
             .context(MissingPropertySnafu { name })
     }
@@ -187,6 +194,9 @@ impl Node {
     where
         T: ParsePropertyValue<'a>,
     {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         let prop = self.fetch_property(name)?;
         prop.parse_value().context(ParsePropertySnafu { name })
     }
@@ -195,6 +205,9 @@ impl Node {
     where
         T: for<'a> ParsePropertyValue<'a>,
     {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         if let Some(value) = self.find_property_as(name)? {
             return Ok(value);
         }
@@ -226,6 +239,9 @@ impl Node {
     }
 
     pub fn interrupt_parent_node(&self) -> Result<Option<Self>, PropertyError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         if let Some(phandle) = self.interrupt_parent()? {
             let node = self
                 .tree()
@@ -252,6 +268,9 @@ impl Node {
     }
 
     pub fn reg(&self) -> Result<RegIter<'_>, PropertyError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         let name = "reg";
         let parent = self.parent().context(MissingParentNodeSnafu)?;
         let address_cells = parent.address_cells()?;
@@ -380,6 +399,9 @@ impl Interrupt {
         interrupt_parent: Node,
         source_bytes: &mut &[u8],
     ) -> Result<Self, PropertyError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         let mut interrupt_domain_root = interrupt_parent.clone();
         while !interrupt_domain_root.is_interrupt_controller() {
             interrupt_domain_root = interrupt_domain_root
@@ -405,6 +427,9 @@ impl Interrupt {
 
 impl Node {
     pub fn interrupts(&self) -> Result<Vec<Interrupt>, PropertyError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::property_error::*;
+
         let name = "interrupts-extended";
         if let Some(prop) = self.find_property(name) {
             let mut value = prop.raw_value();

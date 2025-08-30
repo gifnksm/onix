@@ -61,6 +61,7 @@ impl Cpu {
 static ALL_CPUS: Once<Vec<Cpu>> = Once::new();
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum CpuInitError {
     #[snafu(display("failed to parse devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -73,6 +74,9 @@ pub enum CpuInitError {
 }
 
 pub fn init(dtree: &Devicetree) -> Result<(), Box<CpuInitError>> {
+    #[expect(clippy::wildcard_imports)]
+    use self::cpu_init_error::*;
+
     let mut all_cpus = parse::parse(dtree).context(ParseDevicetreeSnafu)?;
 
     // sort cpus by cpuid

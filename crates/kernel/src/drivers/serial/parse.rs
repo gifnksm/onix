@@ -33,6 +33,7 @@ impl fmt::Display for NodeNameFormat<'_> {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParseDevicetreeError {
     #[snafu(display("missing `soc` node in devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -53,6 +54,7 @@ pub enum ParseDevicetreeError {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParseSerialNodeError {
     #[snafu(display("failed to get property in `serial` node"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -86,6 +88,9 @@ pub enum ParseSerialNodeError {
 pub(super) fn parse(
     dtree: &Devicetree,
 ) -> Result<Vec<Arc<SpinMutex<SerialDevice>>>, Box<ParseDevicetreeError>> {
+    #[expect(clippy::wildcard_imports)]
+    use self::parse_devicetree_error::*;
+
     let soc_node = dtree
         .find_node_by_path("/soc")
         .context(MissingSocNodeSnafu)?;
@@ -108,6 +113,9 @@ pub(super) fn parse(
 fn find_plic_source(
     interrupts: &[Interrupt],
 ) -> Result<(Arc<Plic>, PlicSource), ParseSerialNodeError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::parse_serial_node_error::*;
+
     for interrupt in interrupts {
         let Some(plic) = plic::find_plic_by_dtree_path(&interrupt.interrupt_parent.path()) else {
             continue;
@@ -120,6 +128,9 @@ fn find_plic_source(
 
 impl SerialDevice {
     fn parse(serial_node: &Node) -> Result<Self, ParseSerialNodeError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_serial_node_error::*;
+
         let interrupts = serial_node.interrupts().context(PropertySnafu)?;
         let (plic, source) = find_plic_source(&interrupts)?;
         let reg = serial_node

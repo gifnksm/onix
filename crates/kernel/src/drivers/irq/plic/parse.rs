@@ -31,6 +31,7 @@ impl fmt::Display for NodeNameFormat<'_> {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParseDevicetreeError {
     #[snafu(display("missing `soc` node in devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -51,6 +52,7 @@ pub enum ParseDevicetreeError {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParsePlicNodeError {
     #[snafu(display("failed to get property in `plic` node"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -75,6 +77,9 @@ pub enum ParsePlicNodeError {
 }
 
 pub fn parse(dtree: &Devicetree) -> Result<Vec<Arc<Plic>>, Box<ParseDevicetreeError>> {
+    #[expect(clippy::wildcard_imports)]
+    use self::parse_devicetree_error::*;
+
     let soc_node = dtree
         .find_node_by_path("/soc")
         .context(MissingSocNodeSnafu)?;
@@ -98,6 +103,9 @@ fn is_plic_node(node: &Node) -> bool {
 }
 
 fn parse_context_map(plic_node: &Node) -> Result<BTreeMap<Cpuid, PlicContext>, ParsePlicNodeError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::parse_plic_node_error::*;
+
     let interrupts = plic_node.interrupts().context(PropertyInNodeSnafu)?;
     let contexts = interrupts
         .into_iter()
@@ -109,6 +117,9 @@ fn parse_context_map(plic_node: &Node) -> Result<BTreeMap<Cpuid, PlicContext>, P
 
 impl Plic {
     fn parse(plic_node: &Node) -> Result<Self, ParsePlicNodeError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_plic_node_error::*;
+
         let path = plic_node.path();
         let reg = plic_node
             .reg()
@@ -140,6 +151,9 @@ impl PlicContext {
         id: usize,
         interrupt: &Interrupt,
     ) -> Result<Option<(Cpuid, Self)>, ParsePlicNodeError> {
+        #[expect(clippy::wildcard_imports)]
+        use parse_plic_node_error::*;
+
         let Some(cpu_node) = interrupt.interrupt_parent.parent() else {
             return Ok(None);
         };

@@ -27,6 +27,7 @@ impl fmt::Display for NodeNameFormat<'_> {
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParseDevicetreeError {
     #[snafu(display("missing `cpus` node in devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -47,6 +48,9 @@ pub enum ParseDevicetreeError {
 }
 
 pub(super) fn parse(dtree: &Devicetree) -> Result<Vec<Cpu>, Box<ParseDevicetreeError>> {
+    #[expect(clippy::wildcard_imports)]
+    use parse_devicetree_error::*;
+
     let cpus_node = dtree
         .find_node_by_path("/cpus")
         .context(MissingCpusNodeSnafu)?;
@@ -64,6 +68,7 @@ pub(super) fn parse(dtree: &Devicetree) -> Result<Vec<Cpu>, Box<ParseDevicetreeE
 }
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParseCpuError {
     #[snafu(display("{source}"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -89,6 +94,9 @@ pub enum ParseCpuError {
 
 impl Cpu {
     fn parse(cpu_node: &Node) -> Result<Self, ParseCpuError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_cpu_error::*;
+
         let reg = cpu_node
             .reg()
             .context(PropertySnafu)?

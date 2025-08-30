@@ -56,6 +56,7 @@ const STRUCTURE_ALIGNMENT: usize = 4;
 /// These errors indicate problems such as invalid magic numbers, incompatible
 /// versions, layout inconsistencies, or malformed strings within the FDT.
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum HeaderValidationError {
     #[snafu(display("invalid magic number: {magic}"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -207,6 +208,9 @@ impl Header {
     /// - Sections must not overlap
     /// - Alignment requirements must be met
     pub fn validate(&self) -> Result<(), HeaderValidationError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::header_validation_error::*;
+
         let magic = self.magic.read();
         ensure!(magic == MAGIC, InvalidMagicSnafu { magic });
 

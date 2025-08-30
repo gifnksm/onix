@@ -43,6 +43,7 @@ use snafu_utils::Location;
 use super::Phandle;
 
 #[derive(Debug, Snafu)]
+#[snafu(module)]
 pub enum ParsePropertyValueError {
     #[snafu(display("missing nul in <string>"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -195,6 +196,9 @@ impl<'a> Property<'a> {
         address_cells: usize,
         size_cells: usize,
     ) -> Result<RegIter<'a>, ParsePropertyValueError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_property_value_error::*;
+
         ensure!(
             (1..=2).contains(&address_cells),
             InvalidAddressCellsSnafu { address_cells }
@@ -226,6 +230,9 @@ pub trait ParsePropertyValue<'a>: Sized {
 
 impl<const N: usize> ParsePropertyValue<'_> for [u8; N] {
     fn parse(prop: &Property<'_>) -> Result<Self, ParsePropertyValueError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_property_value_error::*;
+
         prop.value.try_into().context(InvalidValueLengthSnafu {
             expected: N,
             actual: prop.value.len(),
@@ -253,6 +260,9 @@ impl ParsePropertyValue<'_> for Phandle {
 
 impl<'a> ParsePropertyValue<'a> for &'a str {
     fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_property_value_error::*;
+
         let end = prop
             .value
             .iter()
@@ -266,6 +276,9 @@ impl<'a> ParsePropertyValue<'a> for &'a str {
 
 impl<'a> ParsePropertyValue<'a> for StringList<'a> {
     fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_property_value_error::*;
+
         let end = prop
             .value
             .iter()
@@ -283,6 +296,9 @@ where
     R: ParsePropertyValue<'a>,
 {
     fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::parse_property_value_error::*;
+
         let left = match L::parse(prop) {
             Ok(value) => return Ok(Self::Left(value)),
             Err(e) => e,
@@ -326,6 +342,9 @@ impl Reg {
 pub(crate) fn checked_split_first_chunk<const N: usize>(
     bytes: &mut &[u8],
 ) -> Result<[u8; N], ParsePropertyValueError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::parse_property_value_error::*;
+
     let chunk;
     (chunk, *bytes) = bytes
         .split_first_chunk()
@@ -337,6 +356,9 @@ pub(crate) fn split_first_bytes<'a>(
     bytes: &mut &'a [u8],
     len: usize,
 ) -> Result<&'a [u8], ParsePropertyValueError> {
+    #[expect(clippy::wildcard_imports)]
+    use self::parse_property_value_error::*;
+
     ensure!(bytes.len() >= len, ValueLengthIsTooSmallSnafu);
     let (first, rest) = bytes.split_at(len);
     *bytes = rest;

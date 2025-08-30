@@ -34,6 +34,7 @@ use crate::common::property::Property;
 /// tokenizing or interpreting a FDT blob, such as invalid alignment, magic
 /// number, version incompatibility, malformed layout, or invalid strings.
 #[derive(Debug, Clone, Snafu)]
+#[snafu(module)]
 pub enum StructLexerError {
     #[snafu(display("invalid token: {token:#x} at offset {offset}"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -175,6 +176,9 @@ impl<'fdt> StructLexer<'fdt, '_> {
     fn read_token_and_data(
         &mut self,
     ) -> Result<Option<StructTokenWithData<'fdt>>, StructLexerError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::struct_lexer_error::*;
+
         assert_eq!(self.offset % align_of::<StructToken>(), 0);
         let Some(token) = self.read_token() else {
             return Ok(None);
@@ -225,11 +229,17 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_prop_header(&mut self) -> Result<PropHeader, StructLexerError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::struct_lexer_error::*;
+
         let offset = self.offset;
         self.read_ty().context(MissingPropHeaderSnafu { offset })
     }
 
     fn read_null_terminated_string(&mut self) -> Result<&'fdt str, StructLexerError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::struct_lexer_error::*;
+
         let offset = self.offset;
         let len = self.devicetree.struct_block[offset..]
             .as_ref()
@@ -243,6 +253,9 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_bytes(&mut self, len: usize) -> Result<&'fdt [u8], StructLexerError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::struct_lexer_error::*;
+
         let offset = self.offset;
         self.offset += len;
         self.devicetree
@@ -252,6 +265,9 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_name(&self, nameoff: usize) -> Result<&'fdt str, StructLexerError> {
+        #[expect(clippy::wildcard_imports)]
+        use self::struct_lexer_error::*;
+
         let len = self.devicetree.string_block[nameoff..]
             .as_ref()
             .iter()
