@@ -67,6 +67,11 @@ impl<T> Be<T>
 where
     T: ByteOrder,
 {
+    /// Creates a new big-endian wrapper from a native-endian value.
+    pub fn new(value: &T) -> Self {
+        Self(T::to_be(value))
+    }
+
     /// Reads the value, converting from big-endian to native endianness.
     pub fn read(&self) -> T {
         T::from_be(&self.0)
@@ -87,6 +92,11 @@ impl<T> Le<T>
 where
     T: ByteOrder,
 {
+    /// Creates a new little-endian wrapper from a native-endian value.
+    pub fn new(value: &T) -> Self {
+        Self(T::to_le(value))
+    }
+
     /// Reads the value, converting from little-endian to native endianness.
     pub fn read(&self) -> T {
         T::from_le(&self.0)
@@ -118,6 +128,11 @@ macro_rules! impl_common_traits {
         $(
             unsafe impl<T> Pod for $ty<T> where T: Pod {}
             impl_fmt_traits!(Debug, Binary, Octal, Display, LowerHex, UpperHex for $ty);
+            impl<T> From<T> for $ty<T> where T: ByteOrder {
+                fn from(value: T) -> Self {
+                    Self::new(&value)
+                }
+            }
         )+
     }
 }

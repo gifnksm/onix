@@ -18,9 +18,12 @@ allocator = { path = "crates/allocator" }
 ansi-term = { path = "crates/ansi-term" }
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.9.4"
+bstr = { version = "1.12.0", default-features = false }
 cfg-if = "1.0.3"
 custom_debug_derive = "0.6.2"
 dataview = "1.0.1"
+devtree = { path = "crates/devtree", features = ["alloc", "unstable-provider-api"] }
+devtree-derive = { version = "0.1.0", path = "crates/devtree-derive" }
 devicetree = { path = "crates/devicetree" }
 either = { version = "1.15.0", default-features = false }
 endian = { path = "crates/endian" }
@@ -122,7 +125,7 @@ needless_collect = "warn"
 needless_pass_by_ref_mut = "warn"
 # non_send_fields_in_send_ty = "warn"
 nonstandard_macro_braces = "warn"
-option_if_let_else = "warn"
+# option_if_let_else = "warn"
 or_fun_call = "warn"
 redundant_clone = "warn"
 set_contains_or_insert = "warn"

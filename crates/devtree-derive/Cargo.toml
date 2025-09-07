@@ -1,0 +1,26 @@
+[package]
+name = "devtree-derive"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description.workspace = true
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+publish.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+darling = "0.21.3"
+proc-macro2 = "1.0.101"
+quote = "1.0.40"
+syn = "2.0.106"
+
+[dev-dependencies]
+devtree = { workspace = true, features = ["alloc"] }
+
+[lints]
+workspace = true
