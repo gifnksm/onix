@@ -48,7 +48,7 @@ pub enum ParseDevicetreeError {
 }
 
 pub(super) fn parse(dtree: &Devicetree) -> Result<Vec<Cpu>, Box<ParseDevicetreeError>> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use parse_devicetree_error::*;
 
     let cpus_node = dtree
@@ -94,7 +94,7 @@ pub enum ParseCpuError {
 
 impl Cpu {
     fn parse(cpu_node: &Node) -> Result<Self, ParseCpuError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_cpu_error::*;
 
         let reg = cpu_node

@@ -99,7 +99,7 @@ pub struct Node<'fdt, 'tree> {
 
 impl<'fdt, 'tree> Node<'fdt, 'tree> {
     pub(crate) fn new(node_tokens: &StructLexer<'fdt, 'tree>) -> Result<Self, ParseStructError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_struct_error::*;
 
         let Some((StructTokenWithData::BeginNode { name, address }, properties_tokens)) =
@@ -175,7 +175,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
     }
 
     fn next_tokens(&self) -> Result<StructLexer<'fdt, 'tree>, ParseStructError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_struct_error::*;
 
         let mut child_tokens = self.children_tokens.clone();
@@ -212,7 +212,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
     /// * `Ok(None)` - If this node has no children
     /// * `Err(error)` - If the structure is malformed
     pub fn first_child(&self) -> Result<Option<Self>, ParseStructError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_struct_error::*;
 
         let child_tokens = &self.children_tokens;
@@ -237,7 +237,7 @@ impl<'fdt, 'tree> Node<'fdt, 'tree> {
     /// * `Ok(None)` - If this is the last sibling
     /// * `Err(error)` - If the structure is malformed
     pub fn next_sibling(&self) -> Result<Option<Self>, ParseStructError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_struct_error::*;
 
         let mut next_tokens = self.next_tokens()?;
@@ -332,7 +332,7 @@ impl<'fdt> Iterator for Properties<'fdt, '_> {
     type Item = Result<Property<'fdt>, ParseStructError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_struct_error::*;
 
         let lexer = self.lexer.as_mut()?;
@@ -364,7 +364,7 @@ pub struct Children<'fdt, 'tree> {
 
 impl<'fdt, 'tree> Children<'fdt, 'tree> {
     fn try_next(&mut self) -> Result<Option<Node<'fdt, 'tree>>, ParseStructError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_struct_error::*;
 
         let Some(next_tokens) = self.lexer.as_mut() else {

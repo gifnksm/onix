@@ -55,7 +55,7 @@ const SERIAL_THRESHOLD: u32 = 0;
 static SERIAL_DRIVERS: Once<Vec<Arc<SpinMutex<SerialDevice>>>> = Once::new();
 
 pub fn init(dtree: &Devicetree) -> Result<(), Box<SerialInitError>> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::serial_init_error::*;
 
     let mut drivers = parse::parse(dtree).context(ParseDevicetreeSnafu)?;

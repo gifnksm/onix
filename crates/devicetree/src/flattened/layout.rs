@@ -208,7 +208,7 @@ impl Header {
     /// - Sections must not overlap
     /// - Alignment requirements must be met
     pub fn validate(&self) -> Result<(), HeaderValidationError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::header_validation_error::*;
 
         let magic = self.magic.read();

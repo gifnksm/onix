@@ -91,7 +91,7 @@ pub enum KernelSpaceInitError {
 }
 
 pub fn init() -> Result<(), KernelSpaceInitError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::kernel_space_init_error::*;
 
     stack::init();
@@ -140,7 +140,7 @@ fn apply_page_table_changes(
     asid: u16,
     vaddr_range: Range<usize>,
 ) -> Result<(), ApplyPageTableChangesError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::apply_page_table_changes_error::*;
 
     vaddr_range.clone().step_by(PAGE_SIZE).for_each(|vaddr| {
@@ -189,7 +189,7 @@ pub fn identity_map_range(
     range: Range<usize>,
     flags: MapPageFlags,
 ) -> Result<(), IdentityMapError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::identity_map_error::*;
 
     let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
@@ -251,7 +251,7 @@ pub enum AllocateKernelStackError {
 }
 
 pub fn allocate_kernel_stack() -> Result<KernelStack, AllocateKernelStackError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::allocate_kernel_stack_error::*;
 
     let slot = StackSlot::allocate().context(NoStackSlotSnafu)?;

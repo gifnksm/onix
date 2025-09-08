@@ -235,7 +235,7 @@ where
     pub(super) fn get_or_insert_next_level_table(
         &mut self,
     ) -> Result<PageTableRef<&mut PageTable>, PageTableError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
         ensure!(!self.is_leaf(), AlreadyMappedSnafu);
@@ -252,7 +252,7 @@ where
         &mut self,
         table: Box<PageTable>,
     ) -> Result<(), PageTableError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
         ensure!(!self.is_valid(), AlreadyMappedSnafu);
@@ -264,7 +264,7 @@ where
     }
 
     pub(super) fn allocate_page(&mut self, flags: MapPageFlags) -> Result<(), PageTableError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
         ensure!(
@@ -288,7 +288,7 @@ where
         phys_page_num: PhysPageNum,
         flags: MapPageFlags,
     ) -> Result<(), PageTableError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
         ensure!(

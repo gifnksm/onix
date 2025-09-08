@@ -42,7 +42,7 @@ pub enum PlicInitError {
 }
 
 pub fn init(dtree: &Devicetree) -> Result<(), Box<PlicInitError>> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use plic_init_error::*;
 
     let plic_devices = parse::parse(dtree).context(ParseDevicetreeSnafu)?;

@@ -176,7 +176,7 @@ impl<'fdt> StructLexer<'fdt, '_> {
     fn read_token_and_data(
         &mut self,
     ) -> Result<Option<StructTokenWithData<'fdt>>, StructLexerError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::struct_lexer_error::*;
 
         assert_eq!(self.offset % align_of::<StructToken>(), 0);
@@ -229,7 +229,7 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_prop_header(&mut self) -> Result<PropHeader, StructLexerError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::struct_lexer_error::*;
 
         let offset = self.offset;
@@ -237,7 +237,7 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_null_terminated_string(&mut self) -> Result<&'fdt str, StructLexerError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::struct_lexer_error::*;
 
         let offset = self.offset;
@@ -253,7 +253,7 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_bytes(&mut self, len: usize) -> Result<&'fdt [u8], StructLexerError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::struct_lexer_error::*;
 
         let offset = self.offset;
@@ -265,7 +265,7 @@ impl<'fdt> StructLexer<'fdt, '_> {
     }
 
     fn read_name(&self, nameoff: usize) -> Result<&'fdt str, StructLexerError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::struct_lexer_error::*;
 
         let len = self.devicetree.string_block[nameoff..]

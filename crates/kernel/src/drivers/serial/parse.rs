@@ -88,7 +88,7 @@ pub enum ParseSerialNodeError {
 pub(super) fn parse(
     dtree: &Devicetree,
 ) -> Result<Vec<Arc<SpinMutex<SerialDevice>>>, Box<ParseDevicetreeError>> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::parse_devicetree_error::*;
 
     let soc_node = dtree
@@ -113,7 +113,7 @@ pub(super) fn parse(
 fn find_plic_source(
     interrupts: &[Interrupt],
 ) -> Result<(Arc<Plic>, PlicSource), ParseSerialNodeError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::parse_serial_node_error::*;
 
     for interrupt in interrupts {
@@ -128,7 +128,7 @@ fn find_plic_source(
 
 impl SerialDevice {
     fn parse(serial_node: &Node) -> Result<Self, ParseSerialNodeError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_serial_node_error::*;
 
         let interrupts = serial_node.interrupts().context(PropertySnafu)?;

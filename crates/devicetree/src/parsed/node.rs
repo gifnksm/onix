@@ -158,7 +158,7 @@ impl Node {
     where
         T: ParsePropertyValue<'a>,
     {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         self.find_property(name)
@@ -183,7 +183,7 @@ impl Node {
     }
 
     pub fn fetch_property(&self, name: &str) -> Result<Property<'_>, PropertyError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         self.find_property(name)
@@ -194,7 +194,7 @@ impl Node {
     where
         T: ParsePropertyValue<'a>,
     {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         let prop = self.fetch_property(name)?;
@@ -205,7 +205,7 @@ impl Node {
     where
         T: for<'a> ParsePropertyValue<'a>,
     {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         if let Some(value) = self.find_property_as(name)? {
@@ -239,7 +239,7 @@ impl Node {
     }
 
     pub fn interrupt_parent_node(&self) -> Result<Option<Self>, PropertyError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         if let Some(phandle) = self.interrupt_parent()? {
@@ -268,7 +268,7 @@ impl Node {
     }
 
     pub fn reg(&self) -> Result<RegIter<'_>, PropertyError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         let name = "reg";
@@ -399,7 +399,7 @@ impl Interrupt {
         interrupt_parent: Node,
         source_bytes: &mut &[u8],
     ) -> Result<Self, PropertyError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         let mut interrupt_domain_root = interrupt_parent.clone();
@@ -427,7 +427,7 @@ impl Interrupt {
 
 impl Node {
     pub fn interrupts(&self) -> Result<Vec<Interrupt>, PropertyError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::property_error::*;
 
         let name = "interrupts-extended";

@@ -22,7 +22,7 @@ pub(super) struct PageTable([PageTableEntry; NUM_ENTRIES]);
 
 impl PageTable {
     pub(super) fn try_allocate() -> Result<Box<Self>, PageTableError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
         let pt = Box::try_new_zeroed().context(AllocPageTableSnafu)?;

@@ -77,7 +77,7 @@ pub enum ParsePlicNodeError {
 }
 
 pub fn parse(dtree: &Devicetree) -> Result<Vec<Arc<Plic>>, Box<ParseDevicetreeError>> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::parse_devicetree_error::*;
 
     let soc_node = dtree
@@ -103,7 +103,7 @@ fn is_plic_node(node: &Node) -> bool {
 }
 
 fn parse_context_map(plic_node: &Node) -> Result<BTreeMap<Cpuid, PlicContext>, ParsePlicNodeError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::parse_plic_node_error::*;
 
     let interrupts = plic_node.interrupts().context(PropertyInNodeSnafu)?;
@@ -117,7 +117,7 @@ fn parse_context_map(plic_node: &Node) -> Result<BTreeMap<Cpuid, PlicContext>, P
 
 impl Plic {
     fn parse(plic_node: &Node) -> Result<Self, ParsePlicNodeError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_plic_node_error::*;
 
         let path = plic_node.path();
@@ -151,7 +151,7 @@ impl PlicContext {
         id: usize,
         interrupt: &Interrupt,
     ) -> Result<Option<(Cpuid, Self)>, ParsePlicNodeError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use parse_plic_node_error::*;
 
         let Some(cpu_node) = interrupt.interrupt_parent.parent() else {

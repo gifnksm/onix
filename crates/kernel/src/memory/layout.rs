@@ -60,7 +60,7 @@ pub struct HeapLayout {
 
 impl HeapLayout {
     pub fn new(dtree: &Devicetree) -> Result<Self, CreateHeapLayoutError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::create_heap_layout_error::*;
 
         let mut available_ranges = RangeSet::<128>::new();
@@ -139,7 +139,7 @@ pub enum UpdateKernelPageTableError {
 }
 
 pub fn update_kernel_page_table(layout: &HeapLayout) -> Result<(), UpdateKernelPageTableError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::update_kernel_page_table_error::*;
 
     kernel_space::identity_map_range(kernel_rx_range(), MapPageFlags::RX)

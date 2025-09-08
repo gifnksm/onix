@@ -196,7 +196,7 @@ impl<'a> Property<'a> {
         address_cells: usize,
         size_cells: usize,
     ) -> Result<RegIter<'a>, ParsePropertyValueError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_property_value_error::*;
 
         ensure!(
@@ -230,7 +230,7 @@ pub trait ParsePropertyValue<'a>: Sized {
 
 impl<const N: usize> ParsePropertyValue<'_> for [u8; N] {
     fn parse(prop: &Property<'_>) -> Result<Self, ParsePropertyValueError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_property_value_error::*;
 
         prop.value.try_into().context(InvalidValueLengthSnafu {
@@ -260,7 +260,7 @@ impl ParsePropertyValue<'_> for Phandle {
 
 impl<'a> ParsePropertyValue<'a> for &'a str {
     fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_property_value_error::*;
 
         let end = prop
@@ -276,7 +276,7 @@ impl<'a> ParsePropertyValue<'a> for &'a str {
 
 impl<'a> ParsePropertyValue<'a> for StringList<'a> {
     fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_property_value_error::*;
 
         let end = prop
@@ -296,7 +296,7 @@ where
     R: ParsePropertyValue<'a>,
 {
     fn parse(prop: &Property<'a>) -> Result<Self, ParsePropertyValueError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::parse_property_value_error::*;
 
         let left = match L::parse(prop) {
@@ -342,7 +342,7 @@ impl Reg {
 pub(crate) fn checked_split_first_chunk<const N: usize>(
     bytes: &mut &[u8],
 ) -> Result<[u8; N], ParsePropertyValueError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::parse_property_value_error::*;
 
     let chunk;
@@ -356,7 +356,7 @@ pub(crate) fn split_first_bytes<'a>(
     bytes: &mut &'a [u8],
     len: usize,
 ) -> Result<&'a [u8], ParsePropertyValueError> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::parse_property_value_error::*;
 
     ensure!(bytes.len() >= len, ValueLengthIsTooSmallSnafu);

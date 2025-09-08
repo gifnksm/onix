@@ -79,7 +79,7 @@ impl Task {
         entry: extern "C" fn(*mut c_void) -> !,
         arg: *mut c_void,
     ) -> Result<Arc<Self>, TaskCreateError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::task_create_error::*;
 
         let kernel_stack = kernel_space::allocate_kernel_stack().context(KernelStackSnafu)?;

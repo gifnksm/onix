@@ -74,7 +74,7 @@ pub enum CpuInitError {
 }
 
 pub fn init(dtree: &Devicetree) -> Result<(), Box<CpuInitError>> {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::cpu_init_error::*;
 
     let mut all_cpus = parse::parse(dtree).context(ParseDevicetreeSnafu)?;

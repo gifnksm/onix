@@ -79,7 +79,7 @@ impl Devicetree<'static> {
     ///
     /// Returns an error if the FDT is invalid or the address is not aligned.
     pub unsafe fn from_addr(addr: usize) -> Result<Self, CreateError> {
-        #[expect(clippy::wildcard_imports)]
+        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::create_error::*;
 
         ensure!(

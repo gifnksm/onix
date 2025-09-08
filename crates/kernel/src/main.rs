@@ -133,7 +133,7 @@ enum PrimaryCpuEntryError {
 }
 
 fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::primary_cpu_entry_error::*;
 
     memory::allocator::init();
@@ -192,7 +192,7 @@ enum SecondaryCpuEntryError {
 }
 
 fn secondary_cpu_entry(cpuid: Cpuid) -> *mut u8 {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::secondary_cpu_entry_error::*;
 
     call_with_panic_report(
@@ -233,7 +233,7 @@ enum MainError {
 }
 
 fn main(is_primary: bool) -> ! {
-    #[expect(clippy::wildcard_imports)]
+    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::main_error::*;
 
     static INIT_COMPLETED: AtomicBool = AtomicBool::new(false);
