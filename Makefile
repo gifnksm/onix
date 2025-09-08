@@ -96,3 +96,13 @@ run:
 test:
 	cargo nextest run
 	cargo test --doc
+
+## Generate documentation
+.PHONY: doc
+doc:
+	RUSTDOCFLAGS="--cfg docsrs" \
+		cargo doc \
+			--all-features \
+			--no-deps \
+			-Zunstable-options \
+			-Zrustdoc-map
