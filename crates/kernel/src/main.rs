@@ -3,17 +3,17 @@
 #![no_std]
 #![no_main]
 
-use alloc::{boxed::Box, collections::vec_deque::VecDeque, sync::Arc};
+use alloc::{borrow::ToOwned as _, boxed::Box, collections::vec_deque::VecDeque, sync::Arc};
 use core::{
     error,
     ffi::c_void,
-    hint,
+    hint, ptr,
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
 
 use ansi_term::{Color, WithFg};
-use devicetree::parsed::Devicetree;
+use devtree::Devicetree;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::{Location, Report};
 use spin::Once;
@@ -39,6 +39,7 @@ mod boot;
 mod cpu;
 mod drivers;
 mod interrupt;
+mod iter;
 mod memory;
 mod sync;
 mod task;
@@ -55,7 +56,7 @@ const ONIX_LOGO: &str = r"
  \____/|_| |_|_/_/\_\
 ";
 
-static DEVICETREE: Once<Devicetree> = Once::new();
+static DEVICETREE: Once<Box<Devicetree>> = Once::new();
 
 fn call_with_panic_report<F, T, E>(panic_message: &str, f: F) -> T
 where
@@ -72,15 +73,6 @@ where
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 enum PrimaryCpuEntryError {
-    #[snafu(display("failed to create devicetree at physical address {dtb_pa:#x}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    CreateDevicetree {
-        dtb_pa: usize,
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: devicetree::flattened::CreateError,
-    },
     #[snafu(display("failed to parse devicetree at physical address {dtb_pa:#x}"))]
     #[snafu(provide(ref, priority, Location => location))]
     ParseDevicetree {
@@ -88,7 +80,7 @@ enum PrimaryCpuEntryError {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: devicetree::flattened::node::ParseStructError,
+        source: devtree::blob::ParseDevicetreeError,
     },
     #[snafu(display("failed to compute heap layout from devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
@@ -146,19 +138,18 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     call_with_panic_report(
         "error during initialization of primary CPU",
         || -> Result<_, PrimaryCpuEntryError> {
-            let dtree = DEVICETREE.try_call_once(|| {
-                unsafe { devicetree::flattened::Devicetree::from_addr(dtb_pa) }
-                    .context(CreateDevicetreeSnafu { dtb_pa })?
-                    .parse()
-                    .context(ParseDevicetreeSnafu { dtb_pa })
+            let dt = DEVICETREE.try_call_once(|| {
+                let dt = unsafe { Devicetree::from_ptr(ptr::with_exposed_provenance(dtb_pa)) }
+                    .context(ParseDevicetreeSnafu { dtb_pa })?;
+                Ok(dt.to_owned())
             })?;
 
-            let heap_layout = HeapLayout::new(dtree).context(ComputeHeapLayoutSnafu)?;
+            let heap_layout = HeapLayout::new(dt).context(ComputeHeapLayoutSnafu)?;
             unsafe {
                 memory::allocator::add_heap_ranges(heap_layout.heap_ranges());
             }
 
-            cpu::init(dtree).context(InitCpuSnafu)?;
+            cpu::init(dt).context(InitCpuSnafu)?;
             cpu_local::init();
             cpu_local::apply(cpuid);
             cpu::set_current_cpuid(cpuid);
@@ -246,9 +237,9 @@ fn main(is_primary: bool) -> ! {
                     start_secondary_cpus();
                 }
 
-                let dtree = DEVICETREE.get().unwrap();
-                drivers::irq::plic::init(dtree).context(InitPlicDriversSnafu)?;
-                drivers::serial::init(dtree).context(InitSerialDriversSnafu)?;
+                let dt = DEVICETREE.get().unwrap();
+                drivers::irq::plic::init(dt).context(InitPlicDriversSnafu)?;
+                drivers::serial::init(dt).context(InitSerialDriversSnafu)?;
 
                 INIT_COMPLETED.store(true, Ordering::Release);
             } else {

@@ -1,17 +1,16 @@
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use core::{error::Error, fmt};
 
-use devicetree::parsed::Devicetree;
+use devtree::Devicetree;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
 use spin::Once;
 
-use self::parse::ParseDevicetreeError;
 use super::irq::plic::{Plic, PlicSource};
 use crate::{cpu, sync::spinlock::SpinMutex};
 
+mod de;
 mod ns16550a;
-mod parse;
 
 trait SerialDriver: fmt::Debug + Send + Sync {
     fn init(&mut self) -> Result<(), Box<dyn Error>>;
@@ -32,11 +31,11 @@ struct SerialDevice {
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum SerialInitError {
-    #[snafu(display("failed to parse device tree"))]
+    #[snafu(display("failed to deserialize devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
-    ParseDevicetree {
+    DeserializeDevicetree {
         #[snafu(source)]
-        source: Box<ParseDevicetreeError>,
+        source: de::DeserializeDevicetreeError,
         #[snafu(implicit)]
         location: Location,
     },
@@ -54,11 +53,11 @@ const SERIAL_PRIORITY: u32 = 1;
 const SERIAL_THRESHOLD: u32 = 0;
 static SERIAL_DRIVERS: Once<Vec<Arc<SpinMutex<SerialDevice>>>> = Once::new();
 
-pub fn init(dtree: &Devicetree) -> Result<(), Box<SerialInitError>> {
+pub fn init(dt: &Devicetree) -> Result<(), Box<SerialInitError>> {
     #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::serial_init_error::*;
 
-    let mut drivers = parse::parse(dtree).context(ParseDevicetreeSnafu)?;
+    let mut drivers = de::deserialize(dt).context(DeserializeDevicetreeSnafu)?;
     for driver_ref in &mut drivers {
         let mut driver = driver_ref.lock();
         driver.driver.init().context(DriverInitSnafu)?;

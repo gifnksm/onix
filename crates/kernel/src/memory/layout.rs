@@ -1,6 +1,8 @@
 use core::ops::Range;
 
-use devicetree::parsed::{Devicetree, node::PropertyError};
+use devtree::{
+    DeserializeNode, Devicetree, cursor::ReadNodeError, de::DeserializeError, types::property::Reg,
+};
 use range_set::RangeSet;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
@@ -43,13 +45,29 @@ pub fn bss_addr_range() -> Range<usize> {
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum CreateHeapLayoutError {
-    #[snafu(display("failed to parse devicetree property"))]
+    #[snafu(display("failed to read devicetree node"))]
     #[snafu(provide(ref, priority, Location => location))]
-    DevicetreeProperty {
+    Read {
         #[snafu(implicit)]
         location: Location,
         #[snafu(source)]
-        source: PropertyError,
+        source: ReadNodeError,
+    },
+    #[snafu(display("failed to deserialize memory node"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    DeserializeMemory {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: DeserializeError,
+    },
+    #[snafu(display("failed to deserialize reserved-memory node"))]
+    #[snafu(provide(ref, priority, Location => location))]
+    DeserializeReservedMemory {
+        #[snafu(implicit)]
+        location: Location,
+        #[snafu(source)]
+        source: DeserializeError,
     },
 }
 
@@ -58,33 +76,55 @@ pub struct HeapLayout {
     available_ranges: RangeSet<128>,
 }
 
+#[derive(Debug, DeserializeNode)]
+struct Memory<'blob> {
+    #[devtree(property)]
+    reg: Reg<'blob>,
+}
+
+#[derive(Debug, DeserializeNode)]
+pub struct ReservedMemoryRegion<'blob> {
+    #[devtree(property)]
+    reg: Reg<'blob>,
+}
+
 impl HeapLayout {
-    pub fn new(dtree: &Devicetree) -> Result<Self, CreateHeapLayoutError> {
+    pub fn new(dt: &Devicetree) -> Result<Self, CreateHeapLayoutError> {
         #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use self::create_heap_layout_error::*;
 
         let mut available_ranges = RangeSet::<128>::new();
 
-        let root = dtree.root_node();
-        let memory_nodes = root.children().filter(|node| node.name() == "memory");
-        for node in memory_nodes {
-            for reg in node.reg().context(DevicetreePropertySnafu)? {
-                available_ranges.insert(reg.range());
-            }
+        let root_node = dt.read_root_node().context(ReadSnafu)?;
+        root_node
+            .try_visit_all_nodes_by_query("/memory", |node| {
+                let memory = node.deserialize_node::<Memory>()?;
+                for reg in memory.reg {
+                    available_ranges.insert(reg.range());
+                }
+                Ok(())
+            })
+            .context(ReadSnafu)?
+            .map_or(Ok(()), Err)
+            .context(DeserializeMemorySnafu)?;
+
+        for rsv in dt.memory_reservation_map() {
+            available_ranges.remove(rsv.address_range());
         }
 
-        for rsv in dtree.mem_rsvmap() {
-            available_ranges.remove(rsv.range());
-        }
-        if let Some(reserved_memory_node) = dtree.find_node_by_path("/reserved-memory") {
-            for child in reserved_memory_node.children() {
-                for reg in child.reg().context(DevicetreePropertySnafu)? {
+        root_node
+            .try_visit_all_nodes_by_query("/reserved-memory/*", |node| {
+                let region = node.deserialize_node::<ReservedMemoryRegion>()?;
+                for reg in region.reg {
                     available_ranges.remove(reg.range());
                 }
-            }
-        }
-        available_ranges.remove(kernel_reserved_range());
+                Ok(())
+            })
+            .context(ReadSnafu)?
+            .map_or(Ok(()), Err)
+            .context(DeserializeReservedMemorySnafu)?;
 
+        available_ranges.remove(kernel_reserved_range());
         Ok(Self { available_ranges })
     }
 

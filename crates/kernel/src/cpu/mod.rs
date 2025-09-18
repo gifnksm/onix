@@ -1,15 +1,15 @@
 use alloc::{boxed::Box, slice, vec::Vec};
 use core::{fmt, iter::Peekable};
 
-use devicetree::parsed::Devicetree;
+use devtree::Devicetree;
 use platform_cast::CastFrom as _;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
 use spin::Once;
 
-use self::parse::ParseDevicetreeError;
+use self::de::DeserializeDevicetreeError;
 
-mod parse;
+mod de;
 
 cpu_local! {
     static CURRENT_CPU: Once<&'static Cpu> = Once::new();
@@ -63,21 +63,21 @@ static ALL_CPUS: Once<Vec<Cpu>> = Once::new();
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum CpuInitError {
-    #[snafu(display("failed to parse devicetree"))]
+    #[snafu(display("failed to deserialize devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
-    ParseDevicetree {
+    DeserializeDevicetree {
         #[snafu(source)]
-        source: Box<ParseDevicetreeError>,
+        source: DeserializeDevicetreeError,
         #[snafu(implicit)]
         location: Location,
     },
 }
 
-pub fn init(dtree: &Devicetree) -> Result<(), Box<CpuInitError>> {
+pub fn init(dt: &Devicetree) -> Result<(), Box<CpuInitError>> {
     #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::cpu_init_error::*;
 
-    let mut all_cpus = parse::parse(dtree).context(ParseDevicetreeSnafu)?;
+    let mut all_cpus = de::deserialize(dt).context(DeserializeDevicetreeSnafu)?;
 
     // sort cpus by cpuid
     all_cpus.sort_by(|a, b| Cpuid::cmp(&a.id, &b.id));

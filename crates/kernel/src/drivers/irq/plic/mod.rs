@@ -1,14 +1,17 @@
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use core::{ops::Range, ptr};
 
-use devicetree::parsed::Devicetree;
+use devtree::{
+    Devicetree,
+    types::{ByteStr, ByteString, property::U32Array},
+};
 use platform_cast::CastFrom as _;
 use snafu::{ResultExt as _, Snafu};
 use snafu_utils::Location;
 use spin::Once;
 use sv39::MapPageFlags;
 
-use self::parse::ParseDevicetreeError;
+use self::de::DeserializeDevicetreeError;
 use crate::{
     cpu::Cpuid,
     interrupt,
@@ -16,18 +19,18 @@ use crate::{
     sync::spinlock::SpinMutex,
 };
 
-mod parse;
+mod de;
 
 static PLIC_DEVICES: Once<Vec<Arc<Plic>>> = Once::new();
 
 #[derive(Debug, Snafu)]
 #[snafu(module)]
 pub enum PlicInitError {
-    #[snafu(display("failed to parse devicetree"))]
+    #[snafu(display("failed to deserialize devicetree"))]
     #[snafu(provide(ref, priority, Location => location))]
-    ParseDevicetree {
+    DeserializeDevicetree {
         #[snafu(source)]
-        source: Box<ParseDevicetreeError>,
+        source: DeserializeDevicetreeError,
         #[snafu(implicit)]
         location: Location,
     },
@@ -41,11 +44,11 @@ pub enum PlicInitError {
     },
 }
 
-pub fn init(dtree: &Devicetree) -> Result<(), Box<PlicInitError>> {
+pub fn init(dt: &Devicetree) -> Result<(), Box<PlicInitError>> {
     #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use plic_init_error::*;
 
-    let plic_devices = parse::parse(dtree).context(ParseDevicetreeSnafu)?;
+    let plic_devices = de::deserialize(dt).context(DeserializeDevicetreeSnafu)?;
     for plic in &plic_devices {
         let mmio = plic.mmio.lock();
         kernel_space::identity_map_range(mmio.range(), MapPageFlags::RW).context(MapPageSnafu)?;
@@ -64,7 +67,11 @@ pub fn find_plic_context_for_cpu(cpuid: Cpuid) -> Option<(Arc<Plic>, PlicContext
     None
 }
 
-pub fn find_plic_by_dtree_path(path: &str) -> Option<Arc<Plic>> {
+pub fn find_plic_by_dtree_path<P>(path: P) -> Option<Arc<Plic>>
+where
+    P: AsRef<ByteStr>,
+{
+    let path = path.as_ref();
     PLIC_DEVICES
         .get()?
         .iter()
@@ -76,7 +83,7 @@ pub type PlicCallback = Arc<dyn Fn(PlicContext) + Send + Sync>;
 
 #[derive(custom_debug_derive::Debug)]
 pub struct Plic {
-    path: String,
+    path: ByteString,
     mmio: SpinMutex<PlicMmio>,
     context_map: BTreeMap<Cpuid, PlicContext>,
     #[debug(skip)]
@@ -121,9 +128,9 @@ impl Plic {
         true
     }
 
-    pub fn translate_interrupt_specifier(&self, specifier: &[u32]) -> PlicSource {
+    pub fn translate_interrupt_specifier(&self, specifier: &U32Array) -> PlicSource {
         assert_eq!(specifier.len(), 1, "invalid interrupt specifier");
-        let id = usize::cast_from(specifier[0]);
+        let id = usize::cast_from(specifier.get(0).unwrap());
         let source = PlicSource { id };
         assert!(
             self.mmio.lock().is_valid_source(source),
