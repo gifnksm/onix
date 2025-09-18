@@ -149,19 +149,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2ea6706d74fca54e15f1d40b5cf7fe7f764aaec61352a9fcec58fe27e042fc8"
 
 [[package]]
-name = "devicetree"
-version = "0.1.0"
-dependencies = [
- "custom_debug_derive",
- "dataview",
- "either",
- "endian",
- "platform-cast",
- "snafu",
- "snafu-utils",
-]
-
-[[package]]
 name = "devtree"
 version = "0.1.0"
 dependencies = [

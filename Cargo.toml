@@ -24,7 +24,6 @@ custom_debug_derive = "0.6.2"
 dataview = "1.0.1"
 devtree = { path = "crates/devtree", features = ["alloc", "unstable-provider-api"] }
 devtree-derive = { version = "0.1.0", path = "crates/devtree-derive" }
-devicetree = { path = "crates/devicetree" }
 either = { version = "1.15.0", default-features = false }
 endian = { path = "crates/endian" }
 platform-cast = "0.1.0"
