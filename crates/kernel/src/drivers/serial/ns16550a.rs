@@ -148,10 +148,7 @@ impl SerialDriver for Driver {
             );
 
             // enable transmit and receive interrupts
-            self.write_register(
-                Register::INTERRUPT_ENABLE,
-                (InterruptEnable::TX_EMPTY | InterruptEnable::RX_READY).bits(),
-            );
+            self.write_register(Register::INTERRUPT_ENABLE, InterruptEnable::empty().bits());
         }
 
         Ok(())
@@ -163,6 +160,24 @@ impl SerialDriver for Driver {
 
     fn is_rx_ready(&mut self) -> bool {
         unsafe { self.read_register(Register::LINE_STATUS) & LineStatus::RX_READY.bits() != 0 }
+    }
+
+    fn set_tx_idle_interrupt(&mut self, enable: bool) {
+        unsafe {
+            let mut ier =
+                InterruptEnable::from_bits_retain(self.read_register(Register::INTERRUPT_ENABLE));
+            ier.set(InterruptEnable::TX_EMPTY, enable);
+            self.write_register(Register::INTERRUPT_ENABLE, ier.bits());
+        }
+    }
+
+    fn set_rx_ready_interrupt(&mut self, enable: bool) {
+        unsafe {
+            let mut ier =
+                InterruptEnable::from_bits_retain(self.read_register(Register::INTERRUPT_ENABLE));
+            ier.set(InterruptEnable::RX_READY, enable);
+            self.write_register(Register::INTERRUPT_ENABLE, ier.bits());
+        }
     }
 
     fn write(&mut self, bytes: &[u8]) -> usize {

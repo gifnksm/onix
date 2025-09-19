@@ -256,6 +256,7 @@ fn main(is_primary: bool) -> ! {
 
             if is_primary {
                 spawn_test_tasks();
+                spawn_console_task();
             }
 
             task::scheduler::start()
@@ -283,6 +284,26 @@ struct TaskState {
     queue: SpinMutex<VecDeque<(TaskId, u64, Instant)>>,
     message_sent: SpinMutexCondVar,
     message_received: SpinMutexCondVar,
+}
+
+fn spawn_console_task() {
+    task::spawn(console_task, ptr::null_mut()).unwrap();
+}
+
+extern "C" fn console_task(_arg: *mut c_void) -> ! {
+    // TODO: retrieve serial path from devicetree
+    let serial = drivers::serial::find_serial_by_dtree_path("/soc/serial@10000000").unwrap();
+    loop {
+        let mut bytes = [0; 64];
+        let nread = serial.read(&mut bytes);
+        if nread > 0 {
+            // echo back
+            let mut nwritten = 0;
+            while nwritten < nread {
+                nwritten += serial.write(&bytes[..nread][nwritten..]);
+            }
+        }
+    }
 }
 
 fn spawn_test_tasks() {

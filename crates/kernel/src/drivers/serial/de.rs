@@ -20,7 +20,6 @@ use crate::{
         serial::ns16550a,
     },
     iter::IteratorExt as _,
-    sync::spinlock::SpinMutex,
 };
 
 #[derive(Debug, Snafu)]
@@ -77,9 +76,7 @@ struct SerialNode<'blob> {
     compatible: Compatible<'blob>,
 }
 
-pub fn deserialize(
-    dt: &Devicetree,
-) -> Result<Vec<Arc<SpinMutex<SerialDevice>>>, DeserializeDevicetreeError> {
+pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<SerialDevice>>, DeserializeDevicetreeError> {
     #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
     use self::deserialize_devicetree_error::*;
 
@@ -89,7 +86,7 @@ pub fn deserialize(
     root_node
         .try_visit_deserialize_all_nodes_by_query("/soc/serial", |serial_node| {
             let device = SerialDevice::from_node(serial_node)?;
-            serial_devices.push(Arc::new(SpinMutex::new(device)));
+            serial_devices.push(Arc::new(device));
             Ok(())
         })
         .context(DeserializeSerialNodeSnafu)?
@@ -138,10 +135,6 @@ impl SerialDevice {
         } else {
             return UnsupportedDeviceSnafu { path: path.0 }.fail();
         };
-        Ok(Self {
-            plic,
-            source,
-            driver,
-        })
+        Ok(Self::new(path.0, plic, source, driver))
     }
 }
