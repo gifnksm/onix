@@ -8,13 +8,11 @@ use platform_cast::CastFrom as _;
 ///
 /// Each entry describes a reserved memory region with a start address and size.
 #[repr(C)]
-#[derive(custom_debug_derive::Debug, Pod, Clone, Copy)]
+#[derive(Debug, Pod, Clone, Copy)]
 pub struct ReserveEntry {
     /// The start address of the reserved memory region.
-    #[debug(format = "{:#x}")]
     pub address: Be<u64>,
     /// The size of the reserved memory region in bytes.
-    #[debug(format = "{:#x}")]
     pub size: Be<u64>,
 }
 

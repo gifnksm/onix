@@ -53,7 +53,7 @@ where
 
 pub type PlicCallback = Arc<dyn Fn(PlicContext) + Send + Sync>;
 
-#[derive(custom_debug_derive::Debug)]
+#[derive(derive_more::Debug)]
 pub struct Plic {
     path: ByteString,
     mmio: SpinMutex<PlicMmio>,
@@ -72,11 +72,9 @@ pub struct PlicSource {
     id: usize,
 }
 
-#[derive(custom_debug_derive::Debug)]
+#[derive(Debug)]
 struct PlicMmio {
-    #[debug(format = "{:#x}")]
     base_addr: usize,
-    #[debug(format = "{:#x}")]
     size: usize,
     ndev: usize,
 }

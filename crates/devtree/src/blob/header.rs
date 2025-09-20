@@ -25,9 +25,8 @@ const _: () = {
 };
 
 #[repr(C, align(8))]
-#[derive(custom_debug_derive::Debug, Pod)]
+#[derive(Debug, Pod)]
 pub struct Header {
-    #[debug(format = "{:#x}")]
     magic: Be<u32>,
     total_size: Be<u32>,
     off_dt_struct: Be<u32>,

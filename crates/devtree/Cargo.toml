@@ -17,7 +17,6 @@ unstable-provider-api = [ "snafu/unstable-provider-api" ]
 
 [dependencies]
 bstr = { workspace = true }
-custom_debug_derive.workspace = true
 dataview.workspace = true
 devtree-derive.workspace = true
 either.workspace = true

@@ -80,11 +80,9 @@ bitflags! {
     }
 }
 
-#[derive(custom_debug_derive::Debug)]
+#[derive(Debug)]
 pub(super) struct Driver {
-    #[debug(format = "{:#x}")]
     base_addr: usize,
-    #[debug(format = "{:#x}")]
     size: usize,
     uart_clock_frequency: u32,
 }

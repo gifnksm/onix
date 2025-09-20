@@ -426,11 +426,9 @@ impl<'blob> Reg<'blob> {
     }
 }
 
-#[derive(custom_debug_derive::Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RegValue<'blob> {
-    #[debug(format = "{:#x?}")]
     pub address: &'blob U32Array,
-    #[debug(format = "{:#x?}")]
     pub size: &'blob U32Array,
 }
 
@@ -552,13 +550,10 @@ impl<'blob> Ranges<'blob> {
     }
 }
 
-#[derive(custom_debug_derive::Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RangesValue<'blob> {
-    #[debug(format = "{:#x?}")]
     pub child_bus_address: &'blob U32Array,
-    #[debug(format = "{:#x?}")]
     pub parent_bus_address: &'blob U32Array,
-    #[debug(format = "{:#x?}")]
     pub len: &'blob U32Array,
 }
 
