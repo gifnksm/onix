@@ -102,10 +102,10 @@ impl Header {
 #[snafu(module)]
 #[non_exhaustive]
 pub enum HeaderValidationError {
-    #[snafu(display("DTB header is not aligned to {HEADER_ALIGNMENT} bytes: {ptr:#p}"))]
+    #[snafu(display("DTB header is not aligned to {HEADER_ALIGNMENT} bytes: {addr:#x}"))]
     #[snafu(provide(ref, priority, Location => location))]
     UnalignedHeader {
-        ptr: *const u8,
+        addr: usize,
         #[snafu(implicit)]
         location: Location,
     },
@@ -186,7 +186,7 @@ impl Header {
 
         ensure!(
             ptr.addr().is_multiple_of(HEADER_ALIGNMENT),
-            UnalignedHeaderSnafu { ptr }
+            UnalignedHeaderSnafu { addr: ptr.addr() }
         );
         #[expect(clippy::cast_ptr_alignment)]
         let ptr = ptr.cast::<Self>();
@@ -210,13 +210,13 @@ impl Header {
         ensure!(
             bytes.as_ptr().addr().is_multiple_of(HEADER_ALIGNMENT),
             UnalignedHeaderSnafu {
-                ptr: bytes.as_ptr(),
+                addr: bytes.as_ptr().addr(),
             }
         );
 
         let data = DataView::from(bytes);
         let header = data.try_get::<Self>(0).context(UnalignedHeaderSnafu {
-            ptr: bytes.as_ptr(),
+            addr: bytes.as_ptr().addr(),
         })?;
 
         header.validate()?;
