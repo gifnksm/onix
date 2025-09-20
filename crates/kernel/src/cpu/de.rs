@@ -1,43 +1,10 @@
 use alloc::vec::Vec;
 
-use devtree::{
-    DeserializeNode, Devicetree,
-    cursor::ReadNodeError,
-    de::{DeserializeError, util},
-    types::property::Reg,
-};
-use snafu::{OptionExt as _, ResultExt as _, Snafu};
-use snafu_utils::Location;
+use devtree::{DeserializeNode, Devicetree, de::util, types::property::Reg};
+use snafu::{OptionExt as _, ResultExt as _};
 
 use super::Cpu;
-use crate::{cpu::Cpuid, iter::IteratorExt as _};
-
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum DeserializeDevicetreeError {
-    #[snafu(display("failed to read root node in devicetree"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ReadRootNode {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: ReadNodeError,
-    },
-    #[snafu(display("failed to deserialize cpu node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeCpuNode {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: DeserializeError,
-    },
-    #[snafu(display("invalid 'reg' entries in cpu node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidRegCpu {
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
+use crate::{cpu::Cpuid, error::GenericError, iter::IteratorExt as _};
 
 #[derive(Debug, DeserializeNode)]
 struct CpuNode<'blob> {
@@ -52,26 +19,28 @@ struct CpuNode<'blob> {
     timebase_frequency: u64,
 }
 
-pub fn deserialize(dt: &Devicetree) -> Result<Vec<Cpu>, DeserializeDevicetreeError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use deserialize_devicetree_error::*;
-
+pub fn deserialize(dt: &Devicetree) -> Result<Vec<Cpu>, GenericError> {
     let mut all_cpus = Vec::new();
 
-    let root = dt.read_root_node().context(ReadRootNodeSnafu)?;
+    let root = dt
+        .read_root_node()
+        .whatever_context("failed to read root node in devicetree")?;
     root.try_visit_deserialize_all_nodes_by_query("/cpus/cpu", |cpu_node: CpuNode| {
         let CpuNode {
             reg,
             timebase_frequency,
         } = cpu_node;
-        let reg = reg.into_iter().assume_one().context(InvalidRegCpuSnafu)?;
+        let reg = reg
+            .into_iter()
+            .assume_one()
+            .whatever_context("invalid 'reg' entries in cpu node")?;
         all_cpus.push(Cpu {
             id: Cpuid::from_raw(reg.range().start),
             timer_frequency: timebase_frequency,
         });
         Ok(())
     })
-    .context(DeserializeCpuNodeSnafu)?
+    .whatever_context("failed to deserialize cpu node")?
     .map_or(Ok(()), Err)?;
 
     Ok(all_cpus)

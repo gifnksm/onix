@@ -49,9 +49,12 @@ pub enum PageTableError {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("attempted to map a page to an already mapped address"))]
+    #[snafu(display(
+        "attempted to map a page to an already mapped address, phys_page_num: {phys_page_num:#x}"
+    ))]
     #[snafu(provide(ref, priority, Location => location))]
     AlreadyMapped {
+        phys_page_num: PhysPageNum,
         #[snafu(implicit)]
         location: Location,
     },

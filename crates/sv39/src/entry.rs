@@ -238,7 +238,12 @@ where
         #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
-        ensure!(!self.is_leaf(), AlreadyMappedSnafu);
+        ensure!(
+            !self.is_leaf(),
+            AlreadyMappedSnafu {
+                phys_page_num: self.phys_page_num().unwrap()
+            }
+        );
 
         if !self.is_valid() {
             let next_level_pt = PageTable::try_allocate()?;
@@ -255,7 +260,12 @@ where
         #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
         use super::page_table_error::*;
 
-        ensure!(!self.is_valid(), AlreadyMappedSnafu);
+        ensure!(
+            !self.is_valid(),
+            AlreadyMappedSnafu {
+                phys_page_num: self.phys_page_num().unwrap()
+            }
+        );
         let table = Box::leak(table);
         let flags = PageFlags::V;
         let phys_page_num = PhysAddr::from_ptr(table).page_num();
@@ -271,7 +281,12 @@ where
             !flags.is_empty() && flags & MapPageFlags::URWX == flags,
             InvalidMapFlagsSnafu { flags }
         );
-        ensure!(!self.is_valid(), AlreadyMappedSnafu);
+        ensure!(
+            !self.is_valid(),
+            AlreadyMappedSnafu {
+                phys_page_num: self.phys_page_num().unwrap()
+            }
+        );
 
         let layout = self.page_layout();
         let page = unsafe { alloc::alloc::alloc_zeroed(layout) };
@@ -295,7 +310,7 @@ where
             !flags.is_empty() && flags & MapPageFlags::URWX == flags,
             InvalidMapFlagsSnafu { flags }
         );
-        ensure!(!self.is_valid(), AlreadyMappedSnafu);
+        ensure!(!self.is_valid(), AlreadyMappedSnafu { phys_page_num });
 
         let page_flags = PageFlags::V | PageFlags::from(flags);
         self.update(phys_page_num, page_flags);

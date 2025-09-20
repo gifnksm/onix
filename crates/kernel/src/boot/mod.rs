@@ -1,9 +1,16 @@
+use alloc::format;
 use core::{
-    hint, ptr,
+    hint, mem, ptr,
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::{cpu::Cpuid, memory};
+use snafu::ResultExt as _;
+
+use crate::{
+    cpu::Cpuid,
+    error::{self, GenericError},
+    memory,
+};
 
 mod imp;
 
@@ -28,11 +35,20 @@ unsafe extern "C" fn primary_cpu_entry(cpuid: usize, dtb_pa: usize) -> *mut u8 {
     unsafe {
         init_bss();
     }
-    crate::primary_cpu_entry(Cpuid::from_raw(cpuid), dtb_pa)
+    let cpuid = Cpuid::from_raw(cpuid);
+    let stack = crate::primary_cpu_entry(cpuid, dtb_pa)
+        .with_whatever_context(|_| format!("failed to initialize primary CPU#{cpuid}"))
+        .unwrap_or_else(|e: GenericError| error::report(e));
+    let stack_top = stack.top();
+    mem::forget(stack);
+    ptr::with_exposed_provenance_mut(stack_top)
 }
 
 unsafe extern "C" fn primary_cpu_reentry() -> ! {
     crate::main(true)
+        .whatever_context("kernel main thread panicked")
+        .unwrap_or_else(|e: GenericError| error::report(e));
+    unreachable!();
 }
 
 static CPU_STARTED: AtomicBool = AtomicBool::new(false);
@@ -49,10 +65,20 @@ pub unsafe fn start_secondary_cpu(cpuid: Cpuid) {
 }
 
 unsafe extern "C" fn secondary_cpu_entry(cpuid: usize) -> *mut u8 {
-    crate::secondary_cpu_entry(Cpuid::from_raw(cpuid))
+    let cpuid = Cpuid::from_raw(cpuid);
+    let stack = crate::secondary_cpu_entry(cpuid)
+        .with_whatever_context(|_| format!("failed to initialize secondary CPU#{cpuid}"))
+        .unwrap_or_else(|e: GenericError| error::report(e));
+    let stack_top = stack.top();
+    mem::forget(stack);
+    ptr::with_exposed_provenance_mut(stack_top)
 }
 
 unsafe extern "C" fn secondary_cpu_reentry() -> ! {
     CPU_STARTED.store(true, Ordering::Release);
+
     crate::main(false)
+        .whatever_context("kernel main thread panicked")
+        .unwrap_or_else(|e: GenericError| error::report(e));
+    unreachable!();
 }

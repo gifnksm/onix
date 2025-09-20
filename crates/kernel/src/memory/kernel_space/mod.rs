@@ -1,3 +1,4 @@
+use alloc::format;
 use core::{
     ops::Range,
     sync::atomic::{AtomicBool, Ordering},
@@ -5,9 +6,8 @@ use core::{
 
 use riscv::register::satp::{self, Satp};
 use riscv_utils::asm;
-use sbi::{SbiError, rfence};
-use snafu::{OptionExt as _, ResultExt as _, Snafu};
-use snafu_utils::Location;
+use sbi::rfence;
+use snafu::{OptionExt as _, ResultExt as _};
 use spin::Once;
 use sv39::{
     MapPageFlags, PageTableError, PageTableRoot,
@@ -16,11 +16,7 @@ use sv39::{
 
 use self::stack::StackSlot;
 use super::PAGE_SIZE;
-use crate::{
-    cpu::{self, CpuMask},
-    memory::Align as _,
-    sync::spinlock::SpinMutex,
-};
+use crate::{cpu, error::GenericError, memory::Align as _, sync::spinlock::SpinMutex};
 
 mod stack;
 
@@ -77,25 +73,9 @@ cpu_local! {
     static APPLIED: AtomicBool = AtomicBool::new(false);
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum KernelSpaceInitError {
-    #[snafu(display("failed to create kernel page table"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    CreateKernelPageTable {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: PageTableError,
-    },
-}
-
-pub fn init() -> Result<(), KernelSpaceInitError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::kernel_space_init_error::*;
-
+pub fn init() -> Result<(), GenericError> {
     stack::init();
-    let kpgtbl = KernelPageTable::new().context(CreateKernelPageTableSnafu)?;
+    let kpgtbl = KernelPageTable::new().whatever_context("failed to create kernel page table")?;
     KERNEL_PAGE_TABLE.call_once(|| SpinMutex::new(kpgtbl));
     Ok(())
 }
@@ -117,32 +97,7 @@ pub fn apply() {
     APPLIED.get().store(true, Ordering::Release);
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum ApplyPageTableChangesError {
-    #[snafu(display(
-        "failed to remote sfence.vma for cpus `{cpu_mask:?}` with virtual address range `{start:#x}..{end:#x}`",
-        start = vaddr_range.start,
-        end = vaddr_range.end
-    ))]
-    #[snafu(provide(ref, priority, Location => location))]
-    RemoteSfenceVma {
-        vaddr_range: Range<usize>,
-        cpu_mask: CpuMask,
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: SbiError,
-    },
-}
-
-fn apply_page_table_changes(
-    asid: u16,
-    vaddr_range: Range<usize>,
-) -> Result<(), ApplyPageTableChangesError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::apply_page_table_changes_error::*;
-
+fn apply_page_table_changes(asid: u16, vaddr_range: Range<usize>) -> Result<(), GenericError> {
     vaddr_range.clone().step_by(PAGE_SIZE).for_each(|vaddr| {
         asm::sfence_vma(vaddr, asid.into());
     });
@@ -155,52 +110,33 @@ fn apply_page_table_changes(
             vaddr_range.len(),
             asid.into(),
         )
-        .with_context(|_e| RemoteSfenceVmaSnafu {
-            cpu_mask,
-            vaddr_range: vaddr_range.clone(),
+        .with_whatever_context(|_e| {
+            format!(
+                "failed to remote sfence.vma for cpus `{cpu_mask:?}` with virtual address range \
+                 `{start:#x}..{end:#x}`",
+                start = vaddr_range.start,
+                end = vaddr_range.end,
+            )
         })?;
     }
 
     Ok(())
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum IdentityMapError {
-    #[snafu(display("failed to update kernel page table"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    UpdateKernelPageTable {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: PageTableError,
-    },
-    #[snafu(display("failed to apply kernel page table changes"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ApplyKernelPageTableChanges {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: ApplyPageTableChangesError,
-    },
-}
-
-pub fn identity_map_range(
-    range: Range<usize>,
-    flags: MapPageFlags,
-) -> Result<(), IdentityMapError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::identity_map_error::*;
-
+pub fn identity_map_range(range: Range<usize>, flags: MapPageFlags) -> Result<(), GenericError> {
     let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
     let asid = kpgtbl.asid();
     kpgtbl
         .identity_map_range(range.clone(), flags)
-        .context(UpdateKernelPageTableSnafu)?;
+        .with_whatever_context(|_| {
+            format!("failed to update kernel page table, range={range:#x?}, flags={flags:?}",)
+        })?;
     kpgtbl.unlock();
 
     if APPLIED.get().load(Ordering::Acquire) {
-        apply_page_table_changes(asid, range).context(ApplyKernelPageTableChangesSnafu)?;
+        apply_page_table_changes(asid, range.clone()).with_whatever_context(|_| {
+            format!("failed to apply kernel page table changes, asid={asid}, range={range:#x?}")
+        })?;
     }
 
     Ok(())
@@ -223,48 +159,19 @@ impl Drop for KernelStack {
     }
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum AllocateKernelStackError {
-    #[snafu(display("no stack slot available"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    NoStackSlot {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("failed to update kernel page table"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    UpdateKernelPageTable {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: PageTableError,
-    },
-    #[snafu(display("failed to apply kernel page table changes"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ApplyKernelPageTableChanges {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: ApplyPageTableChangesError,
-    },
-}
-
-pub fn allocate_kernel_stack() -> Result<KernelStack, AllocateKernelStackError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::allocate_kernel_stack_error::*;
-
-    let slot = StackSlot::allocate().context(NoStackSlotSnafu)?;
+pub fn allocate_kernel_stack() -> Result<KernelStack, GenericError> {
+    let slot = StackSlot::allocate().whatever_context("no stack slot available")?;
 
     let mut kpgtbl = KERNEL_PAGE_TABLE.get().unwrap().lock();
     let asid = kpgtbl.asid();
     kpgtbl
         .allocate_virt_addr_range(slot.range(), MapPageFlags::RW)
-        .context(UpdateKernelPageTableSnafu)?;
+        .whatever_context("failed to update kernel page table")?;
     kpgtbl.unlock();
 
     if APPLIED.get().load(Ordering::Acquire) {
-        apply_page_table_changes(asid, slot.range()).context(ApplyKernelPageTableChangesSnafu)?;
+        apply_page_table_changes(asid, slot.range())
+            .whatever_context("failed to apply page table changes")?;
     }
 
     Ok(KernelStack { slot })

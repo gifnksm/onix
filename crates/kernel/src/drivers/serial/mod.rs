@@ -1,17 +1,17 @@
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, format, sync::Arc, vec::Vec};
 use core::{error::Error, fmt};
 
 use devtree::{
     Devicetree,
     types::{ByteStr, ByteString},
 };
-use snafu::{ResultExt as _, Snafu};
-use snafu_utils::Location;
+use snafu::ResultExt as _;
 use spin::Once;
 
 use super::irq::plic::{Plic, PlicSource};
 use crate::{
     cpu,
+    error::GenericError,
     sync::spinlock::{SpinMutex, SpinMutexCondVar},
 };
 
@@ -29,36 +29,12 @@ trait SerialDriver: fmt::Debug + Send + Sync {
     fn complete(&mut self);
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum SerialInitError {
-    #[snafu(display("failed to deserialize devicetree"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeDevicetree {
-        #[snafu(source)]
-        source: de::DeserializeDevicetreeError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("failed to initialize driver"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DriverInit {
-        #[snafu(source)]
-        source: Box<dyn Error>,
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
-
 const SERIAL_PRIORITY: u32 = 1;
 const SERIAL_THRESHOLD: u32 = 0;
 static SERIAL_DRIVERS: Once<Vec<Arc<SerialDevice>>> = Once::new();
 
-pub fn init(dt: &Devicetree) -> Result<(), Box<SerialInitError>> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::serial_init_error::*;
-
-    let drivers = de::deserialize(dt).context(DeserializeDevicetreeSnafu)?;
+pub fn init(dt: &Devicetree) -> Result<(), GenericError> {
+    let drivers = de::deserialize(dt).whatever_context("failed to deserialize devicetree")?;
     for driver in &drivers {
         driver.init()?;
         let plic = Arc::clone(&driver.plic);
@@ -130,13 +106,14 @@ impl SerialDevice {
         }
     }
 
-    fn init(&self) -> Result<(), SerialInitError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::serial_init_error::*;
-
+    fn init(&self) -> Result<(), GenericError> {
         let mut driver = self.driver.lock();
-
-        driver.init().context(DriverInitSnafu)?;
+        driver.init().with_whatever_context(|_| {
+            format!(
+                "failed to initialize serial device driver, path={}",
+                self.path,
+            )
+        })?;
         driver.set_rx_ready_interrupt(true);
         Ok(())
     }

@@ -2,67 +2,20 @@ use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 
 use devtree::{
     DeserializeNode, Devicetree,
-    cursor::{NodeCursor, ReadNodeError},
-    de::{DeserializeError, util},
+    cursor::NodeCursor,
+    de::util,
     types::{
         node::{InterruptGeneratingDevice, NodePath},
         property::Reg,
     },
 };
-use snafu::{OptionExt as _, ResultExt as _, Snafu};
-use snafu_utils::Location;
+use snafu::{OptionExt as _, ResultExt as _};
 
 use super::{Plic, PlicContext};
 use crate::{
-    cpu::Cpuid, drivers::irq::plic::PlicMmio, iter::IteratorExt as _, sync::spinlock::SpinMutex,
+    cpu::Cpuid, drivers::irq::plic::PlicMmio, error::GenericError, iter::IteratorExt as _,
+    sync::spinlock::SpinMutex,
 };
-
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum DeserializeDevicetreeError {
-    #[snafu(display("failed to read devicetree node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    Read {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: ReadNodeError,
-    },
-    #[snafu(display("failed to deserialize plic node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializePlic {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: DeserializeError,
-    },
-    #[snafu(display("invalid 'reg' entries in plic node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidRegPlic {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("failed to deserialize cpu node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeCpu {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: DeserializeError,
-    },
-    #[snafu(display("invalid 'reg' entries in cpu node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidRegCpu {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("invalid specifier len"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidSpecifierLen {
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
 
 #[derive(Debug, DeserializeNode)]
 struct PlicNode<'blob> {
@@ -79,18 +32,17 @@ struct PlicNode<'blob> {
     reg: Reg<'blob>,
 }
 
-pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<Plic>>, DeserializeDevicetreeError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::deserialize_devicetree_error::*;
-
+pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<Plic>>, GenericError> {
     let mut plic_devices = Vec::new();
-    let root_node = dt.read_root_node().context(ReadSnafu)?;
+    let root_node = dt
+        .read_root_node()
+        .whatever_context("failed to read devicetree root node")?;
     root_node
         .try_visit_deserialize_all_nodes_by_query("/soc/plic", |plic_node| {
             plic_devices.push(Plic::from_node(&root_node, plic_node)?);
             Ok(())
         })
-        .context(DeserializePlicSnafu)?
+        .whatever_context("failed to deserialize devicetree plic node")?
         .map_or(Ok(()), Err)?;
     Ok(plic_devices)
 }
@@ -99,17 +51,17 @@ impl Plic {
     fn from_node(
         root_node: &NodeCursor<'_, '_>,
         plic_node: PlicNode,
-    ) -> Result<Arc<Self>, DeserializeDevicetreeError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_devicetree_error::*;
-
+    ) -> Result<Arc<Self>, GenericError> {
         let PlicNode {
             path,
             device,
             ndev,
             reg,
         } = plic_node;
-        let reg = reg.into_iter().assume_one().context(InvalidRegPlicSnafu)?;
+        let reg = reg
+            .into_iter()
+            .assume_one()
+            .whatever_context("invalid 'reg' entries in plic node")?;
         let range = reg.range();
         let context_map = deserialize_context_map(root_node, &device)?;
         let plic = Arc::new(Self {
@@ -129,17 +81,14 @@ impl Plic {
 fn deserialize_context_map(
     root_node: &NodeCursor<'_, '_>,
     device: &InterruptGeneratingDevice<'_>,
-) -> Result<BTreeMap<Cpuid, PlicContext>, DeserializeDevicetreeError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::deserialize_devicetree_error::*;
-
+) -> Result<BTreeMap<Cpuid, PlicContext>, GenericError> {
     let mut map = BTreeMap::new();
     for (id, interrupt) in device.interrupts().iter().enumerate() {
         let specifier = interrupt
             .specifier()
             .into_iter()
             .assume_one()
-            .context(InvalidSpecifierLenSnafu)?;
+            .whatever_context("invalid interrupt specifier length")?;
         // 9 means supervisor interrupt
         if specifier != 9 {
             continue;
@@ -148,7 +97,7 @@ fn deserialize_context_map(
         root_node
             .visit_node_by_query(
                 interrupt.parent_path(),
-                |parent| -> Result<(), DeserializeDevicetreeError> {
+                |parent| -> Result<(), GenericError> {
                     let Some(cpu_node) = parent.parent() else {
                         return Ok(());
                     };
@@ -157,14 +106,17 @@ fn deserialize_context_map(
                     }
                     let reg = cpu_node
                         .deserialize_property::<Reg<'_>>("reg")
-                        .context(DeserializeCpuSnafu)?;
-                    let reg = reg.into_iter().assume_one().context(InvalidRegCpuSnafu)?;
+                        .whatever_context("failed to deserialize devicetree cpu node")?;
+                    let reg = reg
+                        .into_iter()
+                        .assume_one()
+                        .whatever_context("invalid 'reg' entries in cpu node")?;
                     let cpuid = Cpuid::from_raw(reg.range().start);
                     map.insert(cpuid, PlicContext { id });
                     Ok(())
                 },
             )
-            .context(ReadSnafu)?;
+            .whatever_context("failed to read devicetree")?;
     }
     Ok(map)
 }

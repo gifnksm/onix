@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
+use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use core::{ops::Range, ptr};
 
 use devtree::{
@@ -6,52 +6,24 @@ use devtree::{
     types::{ByteStr, ByteString, property::U32Array},
 };
 use platform_cast::CastFrom as _;
-use snafu::{ResultExt as _, Snafu};
-use snafu_utils::Location;
+use snafu::ResultExt as _;
 use spin::Once;
 use sv39::MapPageFlags;
 
-use self::de::DeserializeDevicetreeError;
 use crate::{
-    cpu::Cpuid,
-    interrupt,
-    memory::kernel_space::{self, IdentityMapError},
-    sync::spinlock::SpinMutex,
+    cpu::Cpuid, error::GenericError, interrupt, memory::kernel_space, sync::spinlock::SpinMutex,
 };
 
 mod de;
 
 static PLIC_DEVICES: Once<Vec<Arc<Plic>>> = Once::new();
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum PlicInitError {
-    #[snafu(display("failed to deserialize devicetree"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeDevicetree {
-        #[snafu(source)]
-        source: DeserializeDevicetreeError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("identity map error"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MapPage {
-        #[snafu(source)]
-        source: IdentityMapError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
-
-pub fn init(dt: &Devicetree) -> Result<(), Box<PlicInitError>> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use plic_init_error::*;
-
-    let plic_devices = de::deserialize(dt).context(DeserializeDevicetreeSnafu)?;
+pub fn init(dt: &Devicetree) -> Result<(), GenericError> {
+    let plic_devices = de::deserialize(dt).whatever_context("failed to deserialize devicetree")?;
     for plic in &plic_devices {
         let mmio = plic.mmio.lock();
-        kernel_space::identity_map_range(mmio.range(), MapPageFlags::RW).context(MapPageSnafu)?;
+        kernel_space::identity_map_range(mmio.range(), MapPageFlags::RW)
+            .whatever_context("failed to identity map pages")?;
     }
     PLIC_DEVICES.call_once(|| plic_devices);
     Ok(())

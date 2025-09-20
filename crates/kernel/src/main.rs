@@ -3,25 +3,26 @@
 #![no_std]
 #![no_main]
 
-use alloc::{borrow::ToOwned as _, boxed::Box, collections::vec_deque::VecDeque, sync::Arc};
+use alloc::{
+    borrow::ToOwned as _, boxed::Box, collections::vec_deque::VecDeque, format, sync::Arc,
+};
 use core::{
-    error,
+    convert::Infallible,
     ffi::c_void,
     hint, ptr,
     sync::atomic::{AtomicBool, Ordering},
     time::Duration,
 };
 
-use ansi_term::{Color, WithFg};
 use devtree::Devicetree;
-use snafu::{ResultExt as _, Snafu};
-use snafu_utils::{Location, Report};
+use snafu::ResultExt as _;
 use spin::Once;
 
 use self::{
     cpu::Cpuid,
+    error::GenericError,
     interrupt::timer::{self, Instant},
-    memory::layout::HeapLayout,
+    memory::{kernel_space::KernelStack, layout::HeapLayout},
     sync::spinlock::{SpinMutex, SpinMutexCondVar},
     task::{TaskId, scheduler},
 };
@@ -38,6 +39,7 @@ mod cpu_local;
 mod boot;
 mod cpu;
 mod drivers;
+mod error;
 mod interrupt;
 mod iter;
 mod memory;
@@ -58,76 +60,7 @@ const ONIX_LOGO: &str = r"
 
 static DEVICETREE: Once<Box<Devicetree>> = Once::new();
 
-fn call_with_panic_report<F, T, E>(panic_message: &str, f: F) -> T
-where
-    F: FnOnce() -> Result<T, E>,
-    E: error::Error,
-{
-    f().unwrap_or_else(|e| {
-        let panic_message = WithFg::new(Color::Red, panic_message);
-        let report = Report::new(e);
-        panic!("{panic_message}\n\n{report}");
-    })
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-enum PrimaryCpuEntryError {
-    #[snafu(display("failed to parse devicetree at physical address {dtb_pa:#x}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ParseDevicetree {
-        dtb_pa: usize,
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: devtree::blob::ParseDevicetreeError,
-    },
-    #[snafu(display("failed to compute heap layout from devicetree"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ComputeHeapLayout {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: memory::layout::CreateHeapLayoutError,
-    },
-    #[snafu(display("failed to initialize CPU table"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InitCpu {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: Box<cpu::CpuInitError>,
-    },
-    #[snafu(display("failed to initialize kernel space"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InitKernelSpace {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: memory::kernel_space::KernelSpaceInitError,
-    },
-    #[snafu(display("failed to update kernel page table"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    UpdateKernelPageTable {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: memory::layout::UpdateKernelPageTableError,
-    },
-    #[snafu(display("failed to allocate kernel stack"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    AllocateKernelStack {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: memory::kernel_space::AllocateKernelStackError,
-    },
-}
-
-fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::primary_cpu_entry_error::*;
-
+fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> Result<KernelStack, GenericError> {
     memory::allocator::init();
 
     println!();
@@ -135,133 +68,79 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> *mut u8 {
     println!("Onix v{ONIX_VERSION}");
     println!("{ONIX_LOGO}");
 
-    call_with_panic_report(
-        "error during initialization of primary CPU",
-        || -> Result<_, PrimaryCpuEntryError> {
-            let dt = DEVICETREE.try_call_once(|| {
-                let dt = unsafe { Devicetree::from_ptr(ptr::with_exposed_provenance(dtb_pa)) }
-                    .context(ParseDevicetreeSnafu { dtb_pa })?;
-                Ok(dt.to_owned())
+    let dt = DEVICETREE.try_call_once(|| {
+        let dt = unsafe { Devicetree::from_ptr(ptr::with_exposed_provenance(dtb_pa)) }
+            .with_whatever_context(|_| {
+                format!("failed to parse devicetree at physical address {dtb_pa:#x}")
             })?;
+        Ok(dt.to_owned())
+    })?;
 
-            let heap_layout = HeapLayout::new(dt).context(ComputeHeapLayoutSnafu)?;
-            unsafe {
-                memory::allocator::add_heap_ranges(heap_layout.heap_ranges());
-            }
+    let heap_layout =
+        HeapLayout::new(dt).whatever_context("failed to compute heap layout from devicetree")?;
+    unsafe {
+        memory::allocator::add_heap_ranges(heap_layout.heap_ranges());
+    }
 
-            cpu::init(dt).context(InitCpuSnafu)?;
-            cpu_local::init();
-            cpu_local::apply(cpuid);
-            cpu::set_current_cpuid(cpuid);
-            interrupt::init(cpuid);
-            memory::kernel_space::init().context(InitKernelSpaceSnafu)?;
-            memory::layout::update_kernel_page_table(&heap_layout)
-                .context(UpdateKernelPageTableSnafu)?;
-            memory::kernel_space::apply();
+    cpu::init(dt).whatever_context("failed to initialize CPU table")?;
+    cpu_local::init();
+    cpu_local::apply(cpuid);
+    cpu::set_current_cpuid(cpuid);
+    interrupt::init(cpuid);
+    memory::kernel_space::init().whatever_context("failed to initialize kernel space")?;
+    memory::layout::update_kernel_page_table(&heap_layout)
+        .whatever_context("failed to update kernel page table")?;
+    memory::kernel_space::apply();
 
-            let stack =
-                memory::kernel_space::allocate_kernel_stack().context(AllocateKernelStackSnafu)?;
-            let stack_top = stack.top();
-            core::mem::forget(stack);
+    let stack = memory::kernel_space::allocate_kernel_stack()
+        .with_whatever_context(|_| format!("failed to allocate kernel stack for CPU#{cpuid}"))?;
 
-            Ok(stack_top as *mut u8)
-        },
-    )
+    Ok(stack)
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-enum SecondaryCpuEntryError {
-    #[snafu(display("failed to allocate kernel stack"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    AllocateKernelStack {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: memory::kernel_space::AllocateKernelStackError,
-    },
+fn secondary_cpu_entry(cpuid: Cpuid) -> Result<KernelStack, GenericError> {
+    cpu_local::apply(cpuid);
+    cpu::set_current_cpuid(cpuid);
+    memory::kernel_space::apply();
+
+    let stack = memory::kernel_space::allocate_kernel_stack()
+        .with_whatever_context(|_| format!("failed to allocate kernel stack for CPU#{cpuid}"))?;
+
+    Ok(stack)
 }
 
-fn secondary_cpu_entry(cpuid: Cpuid) -> *mut u8 {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::secondary_cpu_entry_error::*;
-
-    call_with_panic_report(
-        "error during initialization of secondary CPU",
-        || -> Result<_, SecondaryCpuEntryError> {
-            cpu_local::apply(cpuid);
-            cpu::set_current_cpuid(cpuid);
-            memory::kernel_space::apply();
-
-            let stack =
-                memory::kernel_space::allocate_kernel_stack().context(AllocateKernelStackSnafu)?;
-            let stack_top = stack.top();
-            core::mem::forget(stack);
-            Ok(stack_top as *mut u8)
-        },
-    )
-}
-
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-enum MainError {
-    #[snafu(display("failed to initialize PLIC device drivers"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InitPlicDrivers {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: Box<drivers::irq::plic::PlicInitError>,
-    },
-    #[snafu(display("failed to initialize serial device drivers"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InitSerialDrivers {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: Box<drivers::serial::SerialInitError>,
-    },
-}
-
-fn main(is_primary: bool) -> ! {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::main_error::*;
-
+fn main(is_primary: bool) -> Result<Infallible, GenericError> {
     static INIT_COMPLETED: AtomicBool = AtomicBool::new(false);
 
-    call_with_panic_report(
-        "error occurred within kernel main function",
-        || -> Result<_, MainError> {
-            if is_primary {
-                unsafe {
-                    start_secondary_cpus();
-                }
+    if is_primary {
+        unsafe {
+            start_secondary_cpus();
+        }
 
-                let dt = DEVICETREE.get().unwrap();
-                drivers::irq::plic::init(dt).context(InitPlicDriversSnafu)?;
-                drivers::serial::init(dt).context(InitSerialDriversSnafu)?;
+        let dt = DEVICETREE.get().unwrap();
+        drivers::irq::plic::init(dt)
+            .whatever_context("failed to initialize PLIC device drivers")?;
+        drivers::serial::init(dt).whatever_context("failed to initialize serial device drivers")?;
 
-                INIT_COMPLETED.store(true, Ordering::Release);
-            } else {
-                while !INIT_COMPLETED.load(Ordering::Acquire) {
-                    hint::spin_loop();
-                }
-            }
+        INIT_COMPLETED.store(true, Ordering::Release);
+    } else {
+        while !INIT_COMPLETED.load(Ordering::Acquire) {
+            hint::spin_loop();
+        }
+    }
 
-            drivers::serial::apply();
-            interrupt::trap::apply();
-            interrupt::timer::start();
+    drivers::serial::apply();
+    interrupt::trap::apply();
+    interrupt::timer::start();
 
-            info!("CPU initialized");
+    info!("CPU initialized");
 
-            if is_primary {
-                spawn_test_tasks();
-                spawn_console_task();
-            }
+    if is_primary {
+        spawn_test_tasks();
+        spawn_console_task();
+    }
 
-            task::scheduler::start()
-        },
-    )
+    task::scheduler::start()
 }
 
 unsafe fn start_secondary_cpus() {

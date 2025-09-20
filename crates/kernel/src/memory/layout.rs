@@ -1,14 +1,13 @@
+use alloc::format;
 use core::ops::Range;
 
-use devtree::{
-    DeserializeNode, Devicetree, cursor::ReadNodeError, de::DeserializeError, types::property::Reg,
-};
+use devtree::{DeserializeNode, Devicetree, types::property::Reg};
 use range_set::RangeSet;
-use snafu::{ResultExt as _, Snafu};
-use snafu_utils::Location;
+use snafu::ResultExt as _;
 use sv39::MapPageFlags;
 
-use super::kernel_space::{self, IdentityMapError};
+use super::kernel_space;
+use crate::error::GenericError;
 
 unsafe extern "C" {
     #[link_name = "__onix_kernel_start"]
@@ -42,35 +41,6 @@ pub fn bss_addr_range() -> Range<usize> {
     (&raw const BSS_START).addr()..(&raw const BSS_END).addr()
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum CreateHeapLayoutError {
-    #[snafu(display("failed to read devicetree node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    Read {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: ReadNodeError,
-    },
-    #[snafu(display("failed to deserialize memory node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeMemory {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: DeserializeError,
-    },
-    #[snafu(display("failed to deserialize reserved-memory node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeReservedMemory {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: DeserializeError,
-    },
-}
-
 #[derive(Debug)]
 pub struct HeapLayout {
     available_ranges: RangeSet<128>,
@@ -89,40 +59,44 @@ pub struct ReservedMemoryRegion<'blob> {
 }
 
 impl HeapLayout {
-    pub fn new(dt: &Devicetree) -> Result<Self, CreateHeapLayoutError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::create_heap_layout_error::*;
-
+    pub fn new(dt: &Devicetree) -> Result<Self, GenericError> {
         let mut available_ranges = RangeSet::<128>::new();
 
-        let root_node = dt.read_root_node().context(ReadSnafu)?;
+        let root_node = dt
+            .read_root_node()
+            .whatever_context("failed to read devicetree root node")?;
         root_node
-            .try_visit_all_nodes_by_query("/memory", |node| {
-                let memory = node.deserialize_node::<Memory>()?;
+            .try_visit_all_nodes_by_query("/memory", |node| -> Result<(), GenericError> {
+                let memory = node
+                    .deserialize_node::<Memory>()
+                    .whatever_context("failed to deserialize devicetree memory node")?;
                 for reg in memory.reg {
                     available_ranges.insert(reg.range());
                 }
                 Ok(())
             })
-            .context(ReadSnafu)?
-            .map_or(Ok(()), Err)
-            .context(DeserializeMemorySnafu)?;
+            .whatever_context("failed to read devicetree node")?
+            .map_or(Ok(()), Err)?;
 
         for rsv in dt.memory_reservation_map() {
             available_ranges.remove(rsv.address_range());
         }
 
         root_node
-            .try_visit_all_nodes_by_query("/reserved-memory/*", |node| {
-                let region = node.deserialize_node::<ReservedMemoryRegion>()?;
-                for reg in region.reg {
-                    available_ranges.remove(reg.range());
-                }
-                Ok(())
-            })
-            .context(ReadSnafu)?
-            .map_or(Ok(()), Err)
-            .context(DeserializeReservedMemorySnafu)?;
+            .try_visit_all_nodes_by_query(
+                "/reserved-memory/*",
+                |node| -> Result<(), GenericError> {
+                    let region = node
+                        .deserialize_node::<ReservedMemoryRegion>()
+                        .whatever_context("failed to deserialize reserved-memory node")?;
+                    for reg in region.reg {
+                        available_ranges.remove(reg.range());
+                    }
+                    Ok(())
+                },
+            )
+            .whatever_context("failed to read devicetree node")?
+            .map_or(Ok(()), Err)?;
 
         available_ranges.remove(kernel_reserved_range());
         Ok(Self { available_ranges })
@@ -165,34 +139,26 @@ pub fn kernel_rw_range() -> Range<usize> {
     super::expand_to_page_boundaries(rw_start..rw_end)
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum UpdateKernelPageTableError {
-    #[snafu(display("failed to identity map kernel page table"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    IdentityMap {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: IdentityMapError,
-    },
-}
+pub fn update_kernel_page_table(layout: &HeapLayout) -> Result<(), GenericError> {
+    let fixed_pairs = [
+        (kernel_rx_range(), MapPageFlags::RX),
+        (kernel_ro_range(), MapPageFlags::R),
+        (kernel_rw_range(), MapPageFlags::RW),
+    ];
+    let heap_pairs = layout
+        .available_ranges
+        .iter()
+        .map(|range| (range.clone(), MapPageFlags::RW));
 
-pub fn update_kernel_page_table(layout: &HeapLayout) -> Result<(), UpdateKernelPageTableError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::update_kernel_page_table_error::*;
-
-    kernel_space::identity_map_range(kernel_rx_range(), MapPageFlags::RX)
-        .context(IdentityMapSnafu)?;
-    kernel_space::identity_map_range(kernel_ro_range(), MapPageFlags::R)
-        .context(IdentityMapSnafu)?;
-    kernel_space::identity_map_range(kernel_rw_range(), MapPageFlags::RW)
-        .context(IdentityMapSnafu)?;
-
-    let rw_ranges = &layout.available_ranges;
-    for range in rw_ranges {
-        kernel_space::identity_map_range(range.clone(), MapPageFlags::RW)
-            .context(IdentityMapSnafu)?;
+    for (range, flags) in fixed_pairs.into_iter().chain(heap_pairs) {
+        kernel_space::identity_map_range(range.clone(), flags).with_whatever_context(
+            move |_| {
+                format!(
+                    "failed to identity map kernel page table, range={range:#x?}, flags={flags:?}"
+                )
+            },
+        )?;
     }
+
     Ok(())
 }

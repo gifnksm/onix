@@ -8,12 +8,12 @@ use core::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use snafu::{ResultExt as _, Snafu};
-use snafu_utils::Location;
+use snafu::ResultExt as _;
 
 use self::scheduler::Context;
 use crate::{
-    memory::kernel_space::{self, AllocateKernelStackError, KernelStack},
+    error::GenericError,
+    memory::kernel_space::{self, KernelStack},
     sync::spinlock::{SpinMutex, SpinMutexGuard},
 };
 
@@ -54,19 +54,6 @@ pub struct TaskSharedData {
     task: Weak<Task>,
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum TaskCreateError {
-    #[snafu(display("failed to create kernel stack"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    KernelStack {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: AllocateKernelStackError,
-    },
-}
-
 #[derive(Debug)]
 pub struct Task {
     id: TaskId,
@@ -78,11 +65,9 @@ impl Task {
     fn new(
         entry: extern "C" fn(*mut c_void) -> !,
         arg: *mut c_void,
-    ) -> Result<Arc<Self>, TaskCreateError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::task_create_error::*;
-
-        let kernel_stack = kernel_space::allocate_kernel_stack().context(KernelStackSnafu)?;
+    ) -> Result<Arc<Self>, GenericError> {
+        let kernel_stack = kernel_space::allocate_kernel_stack()
+            .whatever_context("failed to allocate kernel stack")?;
         let sched_context = Context::new(&kernel_stack, entry, arg);
         let task = Arc::new_cyclic(|task| Self {
             id: TaskId::new(),
@@ -104,7 +89,7 @@ impl Task {
 pub fn spawn(
     entry: extern "C" fn(*mut c_void) -> !,
     arg: *mut c_void,
-) -> Result<TaskId, TaskCreateError> {
+) -> Result<TaskId, GenericError> {
     let task = Task::new(entry, arg)?;
     assert!(
         TASK_MAP

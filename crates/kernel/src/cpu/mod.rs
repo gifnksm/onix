@@ -1,13 +1,12 @@
-use alloc::{boxed::Box, slice, vec::Vec};
+use alloc::{slice, vec::Vec};
 use core::{fmt, iter::Peekable};
 
 use devtree::Devicetree;
 use platform_cast::CastFrom as _;
-use snafu::{ResultExt as _, Snafu};
-use snafu_utils::Location;
+use snafu::ResultExt as _;
 use spin::Once;
 
-use self::de::DeserializeDevicetreeError;
+use crate::error::GenericError;
 
 mod de;
 
@@ -60,24 +59,8 @@ impl Cpu {
 
 static ALL_CPUS: Once<Vec<Cpu>> = Once::new();
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-pub enum CpuInitError {
-    #[snafu(display("failed to deserialize devicetree"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DeserializeDevicetree {
-        #[snafu(source)]
-        source: DeserializeDevicetreeError,
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
-
-pub fn init(dt: &Devicetree) -> Result<(), Box<CpuInitError>> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::cpu_init_error::*;
-
-    let mut all_cpus = de::deserialize(dt).context(DeserializeDevicetreeSnafu)?;
+pub fn init(dt: &Devicetree) -> Result<(), GenericError> {
+    let mut all_cpus = de::deserialize(dt).whatever_context("failed to deserialize devicetree")?;
 
     // sort cpus by cpuid
     all_cpus.sort_by(|a, b| Cpuid::cmp(&a.id, &b.id));
