@@ -4,9 +4,7 @@ use syn::{parse_macro_input, parse_quote};
 
 use self::{
     builder::{Builder, FieldIdent},
-    meta::{
-        ChildSpec, Fallback, FieldSpec, Input, PropertySpec, RepeatedChildrenSpec, ResolvedName,
-    },
+    meta::{Fallback, FieldSpec, Input, ResolvedName},
     sgen::SymbolGenerator,
 };
 
@@ -239,7 +237,7 @@ mod sgen;
 ///     // - aliases: custom deserialization into a PropertyCollection (BTreeMap)
 ///     #[devtree(child(
 ///         default,
-///         deserialize_with = util::deserialize_node_as_property_collection
+///         deserialize_with = util::deserialize_node_as_property_collection,
 ///     ))]
 ///     pub aliases: BTreeMap<&'blob ByteStr, &'blob ByteStr>,
 ///
@@ -335,7 +333,6 @@ mod sgen;
 ///     // Node unit address.
 ///     #[devtree(node)]
 ///     pub unit_address: NodeUnitAddress<'blob>,
-///
 ///     // Required properties.
 ///     #[devtree(property)]
 ///     pub device_type: &'blob ByteStr,
@@ -349,14 +346,14 @@ mod sgen;
 ///         name = "clock-frequency",
 ///         fallback = "parent",
 ///         default,
-///         deserialize_with = |pctx| util::deserialize_u64_or_u32_property(pctx).map(Some),
+///         deserialize_with = |de| util::deserialize_u64_or_u32_property(de).map(Some),
 ///     ))]
 ///     pub clock_frequency: Option<u64>,
 ///     #[devtree(property(
 ///         name = "timebase-frequency",
 ///         fallback = "parent",
 ///         default,
-///         deserialize_with = |pctx| util::deserialize_u64_or_u32_property(pctx).map(Some),
+///         deserialize_with = |de| util::deserialize_u64_or_u32_property(de).map(Some),
 ///     ))]
 ///     pub timebase_frequency: Option<u64>,
 ///
@@ -389,34 +386,9 @@ fn generate_impl(input: &syn::DeriveInput) -> Result<TokenStream, syn::Error> {
     let fields = data.take_struct().unwrap();
 
     for (i, field) in fields.fields.into_iter().enumerate() {
-        let field_ident = match field.ident {
-            Some(ident) => FieldIdent::Named(ident),
-            None => FieldIdent::Unnamed(i),
-        };
-        let field_ty = field.ty;
-
-        match field.field_spec {
-            FieldSpec::Node(spec) => {
-                builder.add_node_field(field_ident, &field_ty, spec);
-            }
-            FieldSpec::Property(spec) => {
-                builder.add_property_field(field_ident, &field_ty, spec)?;
-            }
-            FieldSpec::ExtraProperties(spec) => {
-                builder.add_extra_properties_field(field_ident, &field_ty, spec)?;
-            }
-            FieldSpec::Child(spec) => {
-                builder.add_child_field(field_ident, &field_ty, spec)?;
-            }
-            FieldSpec::RepeatedChildren(spec) => {
-                builder.add_repeated_children_field(field_ident, &field_ty, spec)?;
-            }
-            FieldSpec::ExtraChildren(spec) => {
-                builder.add_extra_children_field(field_ident, &field_ty, spec)?;
-            }
-        }
+        builder.push_field(i, field);
     }
 
-    let output = builder.build();
+    let output = builder.build()?;
     Ok(output)
 }

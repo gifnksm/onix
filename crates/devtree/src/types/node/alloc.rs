@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use alloc::vec::Vec;
 
 use crate::types::{ByteStr, ByteString, property::U32Array};

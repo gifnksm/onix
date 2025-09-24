@@ -5,16 +5,14 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 #![no_std]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 pub use devtree_derive::DeserializeNode;
 
 pub use self::blob::Devicetree;
 
 pub mod blob;
-pub mod cursor;
 pub mod de;
-pub mod search;
+pub mod node_stack;
+mod polyfill;
+pub mod token_cursor;
+pub mod tree_cursor;
 pub mod types;
-mod utils;

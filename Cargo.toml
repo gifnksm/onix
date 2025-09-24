@@ -16,12 +16,13 @@ publish = false
 [workspace.dependencies]
 allocator = { path = "crates/allocator" }
 ansi-term = { path = "crates/ansi-term" }
+argh = "0.1.13"
 arrayvec = { version = "0.7.6", default-features = false }
 bitflags = "2.9.4"
 bstr = { version = "1.12.0", default-features = false }
 cfg-if = "1.0.3"
 dataview = "1.0.1"
-derive_more = { version = "2.0.1", default-features = false, features = ["debug"] }
+derive_more = { version = "2.0.1", default-features = false, features = ["debug", "from"] }
 devtree = { path = "crates/devtree", features = ["alloc", "unstable-provider-api"] }
 devtree-derive = { version = "0.1.0", path = "crates/devtree-derive" }
 either = { version = "1.15.0", default-features = false }

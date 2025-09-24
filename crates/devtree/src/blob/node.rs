@@ -1,18 +1,14 @@
-use super::{Devicetree, UNIT_ADDRESS_SEPARATOR};
-use crate::{cursor::TokenCursor, types::ByteStr, utils};
+use super::UNIT_ADDRESS_SEPARATOR;
+use crate::{polyfill, types::ByteStr};
 
 #[derive(Debug, Clone)]
 pub struct Node<'blob> {
     full_name: &'blob ByteStr,
-    items_start_cursor: TokenCursor<'blob>,
 }
 
 impl<'blob> Node<'blob> {
-    pub(crate) fn new(full_name: &'blob ByteStr, items_start_cursor: TokenCursor<'blob>) -> Self {
-        Self {
-            full_name,
-            items_start_cursor,
-        }
+    pub(crate) fn new(full_name: &'blob ByteStr) -> Self {
+        Self { full_name }
     }
 
     #[must_use]
@@ -22,7 +18,7 @@ impl<'blob> Node<'blob> {
 
     #[must_use]
     pub fn split_name(&self) -> (&'blob ByteStr, Option<&'blob ByteStr>) {
-        match utils::slice_split_once(self.full_name, |&b| b == UNIT_ADDRESS_SEPARATOR) {
+        match polyfill::slice_split_once(self.full_name, |&b| b == UNIT_ADDRESS_SEPARATOR) {
             Some((name, unit_address)) => (ByteStr::new(name), Some(ByteStr::new(unit_address))),
             None => (ByteStr::new(self.full_name), None),
         }
@@ -39,12 +35,7 @@ impl<'blob> Node<'blob> {
     }
 
     #[must_use]
-    pub fn devicetree(&self) -> &'blob Devicetree {
-        self.items_start_cursor.devicetree()
-    }
-
-    #[must_use]
-    pub(crate) fn items_start_cursor(&self) -> &TokenCursor<'blob> {
-        &self.items_start_cursor
+    pub fn is_root(&self) -> bool {
+        self.full_name().is_empty()
     }
 }

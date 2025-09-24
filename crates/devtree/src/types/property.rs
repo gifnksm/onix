@@ -8,7 +8,7 @@ use core::{
 
 use platform_cast::CastFrom as _;
 
-use crate::{types::ByteStr, utils};
+use crate::{polyfill, types::ByteStr};
 
 macro_rules! forward_fmt_impls {
     ($ty:path, $($traits:path),* $(,)?) => {
@@ -234,8 +234,8 @@ impl<'blob> Iterator for ByteStrListIter<'blob> {
         if self.remainder.is_empty() {
             return None;
         }
-        let (s, rest) =
-            utils::slice_split_once(self.remainder, |&b| b == 0).unwrap_or((self.remainder, &[]));
+        let (s, rest) = polyfill::slice_split_once(self.remainder, |&b| b == 0)
+            .unwrap_or((self.remainder, &[]));
         self.remainder = ByteStr::new(rest);
         Some(ByteStr::new(s))
     }
@@ -246,8 +246,8 @@ impl DoubleEndedIterator for ByteStrListIter<'_> {
         if self.remainder.is_empty() {
             return None;
         }
-        let (rest, s) =
-            utils::slice_rsplit_once(self.remainder, |&b| b == 0).unwrap_or((&[], self.remainder));
+        let (rest, s) = polyfill::slice_rsplit_once(self.remainder, |&b| b == 0)
+            .unwrap_or((&[], self.remainder));
         self.remainder = ByteStr::new(rest);
         Some(ByteStr::new(s))
     }
@@ -588,4 +588,40 @@ impl<'blob> Iterator for RangesIter<'blob> {
             len,
         })
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.value.len()
+            / (self.child_address_cells.value()
+                + self.child_size_cells.value()
+                + self.parent_address_cells.value());
+        (len, Some(len))
+    }
 }
+
+impl DoubleEndedIterator for RangesIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.value.is_empty() {
+            return None;
+        }
+
+        let value = self.value;
+        let (value, len) = value.split_at(value.len() - self.child_size_cells.value());
+        let (value, parent_bus_address) =
+            value.split_at(value.len() - self.parent_address_cells.value());
+        let (value, child_bus_address) =
+            value.split_at(value.len() - self.child_address_cells.value());
+        self.value = value;
+        let child_bus_address = U32Array::new(child_bus_address);
+        let parent_bus_address = U32Array::new(parent_bus_address);
+        let len = U32Array::new(len);
+
+        Some(RangesValue {
+            child_bus_address,
+            parent_bus_address,
+            len,
+        })
+    }
+}
+
+impl ExactSizeIterator for RangesIter<'_> {}
+impl FusedIterator for RangesIter<'_> {}

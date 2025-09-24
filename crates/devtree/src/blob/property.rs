@@ -1,32 +1,37 @@
-use super::Devicetree;
-use crate::{types::ByteStr, utils};
+use core::fmt;
 
-#[derive(Debug, Clone)]
+use crate::{polyfill, types::ByteStr};
+
+#[derive(Clone)]
 pub struct Property<'blob> {
-    devicetree: &'blob Devicetree,
-    name_offset: usize,
+    name_bytes: &'blob [u8],
     value: &'blob [u8],
 }
 
 impl<'blob> Property<'blob> {
     #[must_use]
-    pub fn new(devicetree: &'blob Devicetree, name_offset: usize, value: &'blob [u8]) -> Self {
-        Self {
-            devicetree,
-            name_offset,
-            value,
-        }
+    pub fn new(name_bytes: &'blob [u8], value: &'blob [u8]) -> Self {
+        Self { name_bytes, value }
     }
 
     #[must_use]
     pub fn name(&self) -> &'blob ByteStr {
-        let name = self.devicetree.strings_block()[self.name_offset..].as_ref();
-        let name = utils::slice_split_once(name, |&b| b == 0).map_or(name, |(s, _)| s);
+        let name = polyfill::slice_split_once(self.name_bytes, |&b| b == 0)
+            .map_or(self.name_bytes, |(s, _)| s);
         ByteStr::new(name)
     }
 
     #[must_use]
     pub fn value(&self) -> &'blob [u8] {
         self.value
+    }
+}
+
+impl fmt::Debug for Property<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Property")
+            .field("name", &self.name())
+            .field("value", &ByteStr::new(self.value))
+            .finish()
     }
 }

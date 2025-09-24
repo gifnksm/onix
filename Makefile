@@ -106,3 +106,8 @@ doc:
 			--no-deps \
 			-Zunstable-options \
 			-Zrustdoc-map
+
+## Generate code coverage report
+.PHONY: cov
+cov:
+	cargo llvm-cov --html --branch --doctests

@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 use core::{
-    iter::Enumerate,
+    iter::{Enumerate, FusedIterator},
     ops::{Deref, DerefMut},
     slice,
 };
@@ -200,3 +200,5 @@ impl<'pt> Iterator for Entries<'pt> {
         })
     }
 }
+
+impl FusedIterator for Entries<'_> {}

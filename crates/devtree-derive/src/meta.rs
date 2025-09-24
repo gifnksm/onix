@@ -54,7 +54,7 @@ pub struct InputField {
     pub field_spec: FieldSpec,
 }
 
-#[derive(Debug, FromMeta, PartialEq, Eq)]
+#[derive(Debug, FromMeta, Clone, PartialEq, Eq)]
 pub enum FieldSpec {
     Node(NodeSpec),
     Property(PropertySpec),
@@ -64,14 +64,16 @@ pub enum FieldSpec {
     ExtraChildren(ExtraChildrenSpec),
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 #[darling(from_word = || Ok(Default::default()))]
 pub struct NodeSpec {
+    #[darling(default)]
+    pub old_deserialize_with: Option<syn::Expr>,
     #[darling(default)]
     pub deserialize_with: Option<syn::Expr>,
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 #[darling(from_word = || Ok(Default::default()), from_expr = Self::from_expr)]
 pub struct PropertySpec {
     #[darling(default)]
@@ -80,6 +82,8 @@ pub struct PropertySpec {
     pub fallback: Fallback,
     #[darling(default)]
     pub default: PropertyDefault,
+    #[darling(default)]
+    pub old_deserialize_with: Option<syn::Expr>,
     #[darling(default)]
     pub deserialize_with: Option<syn::Expr>,
 }
@@ -94,20 +98,24 @@ impl PropertySpec {
     }
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 #[darling(from_word = || Ok(Default::default()))]
 pub struct ExtraPropertiesSpec {
+    #[darling(default)]
+    pub old_insert_with: Option<syn::Expr>,
     #[darling(default)]
     pub insert_with: Option<syn::Expr>,
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 #[darling(from_word = || Ok(Default::default()), from_expr = Self::from_expr)]
 pub struct ChildSpec {
     #[darling(default)]
     pub name: Name,
     #[darling(default)]
     pub default: bool,
+    #[darling(default)]
+    pub old_deserialize_with: Option<syn::Expr>,
     #[darling(default)]
     pub deserialize_with: Option<syn::Expr>,
 }
@@ -122,10 +130,12 @@ impl ChildSpec {
     }
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 #[darling(from_word = || Ok(Default::default()), from_expr = Self::from_expr)]
 pub struct RepeatedChildrenSpec {
     pub name: Name,
+    #[darling(default)]
+    pub old_insert_with: Option<syn::Expr>,
     #[darling(default)]
     pub insert_with: Option<syn::Expr>,
 }
@@ -140,21 +150,23 @@ impl RepeatedChildrenSpec {
     }
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 #[darling(from_word = || Ok(Default::default()))]
 pub struct ExtraChildrenSpec {
+    #[darling(default)]
+    pub old_insert_with: Option<syn::Expr>,
     #[darling(default)]
     pub insert_with: Option<syn::Expr>,
 }
 
-#[derive(Debug, Default, FromMeta, PartialEq, Eq)]
+#[derive(Debug, Default, FromMeta, Clone, PartialEq, Eq)]
 pub enum Fallback {
     #[default]
     None,
     Parent,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum PropertyDefault {
     #[default]
     None,
@@ -172,7 +184,7 @@ impl FromMeta for PropertyDefault {
     }
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum Name {
     #[default]
     FromField,
@@ -213,14 +225,14 @@ pub enum ResolvedName {
 }
 
 impl ResolvedName {
-    pub fn to_str(&self) -> syn::LitStr {
+    pub fn to_lit_str(&self) -> syn::LitStr {
         match self {
             Self::Str(s) => s.clone(),
         }
     }
 
-    pub fn to_byte_str(&self) -> syn::LitByteStr {
-        let s = self.to_str();
+    pub fn to_lit_byte_str(&self) -> syn::LitByteStr {
+        let s = self.to_lit_str();
         syn::LitByteStr::new(s.value().as_bytes(), s.span())
     }
 }

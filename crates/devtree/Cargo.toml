@@ -18,6 +18,7 @@ unstable-provider-api = [ "snafu/unstable-provider-api" ]
 [dependencies]
 bstr = { workspace = true }
 dataview.workspace = true
+derive_more = { workspace = true }
 devtree-derive.workspace = true
 either.workspace = true
 endian.workspace = true
@@ -26,7 +27,9 @@ snafu.workspace = true
 snafu-utils.workspace = true
 
 [dev-dependencies]
+argh.workspace = true
 devtree = { workspace = true, features = ["alloc"] }
+snafu-utils.workspace = true
 
 [lints]
 workspace = true

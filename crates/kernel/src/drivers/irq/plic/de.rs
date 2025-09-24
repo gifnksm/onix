@@ -2,9 +2,10 @@ use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 
 use devtree::{
     DeserializeNode, Devicetree,
-    cursor::NodeCursor,
     de::util,
+    tree_cursor::{TreeCursor as _, TreeIterator as _},
     types::{
+        ByteStr,
         node::{InterruptGeneratingDevice, NodePath},
         property::Reg,
     },
@@ -25,7 +26,7 @@ struct PlicNode<'blob> {
     device: InterruptGeneratingDevice<'blob>,
     #[devtree(property(
         name = "riscv,ndev",
-        deserialize_with = util::deserialize_usize_property_from_u32,
+        deserialize_with = util::deserialize_property_as_usize_via_u32,
     ))]
     ndev: usize,
     #[devtree(property)]
@@ -34,24 +35,21 @@ struct PlicNode<'blob> {
 
 pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<Plic>>, GenericError> {
     let mut plic_devices = Vec::new();
-    let root_node = dt
-        .read_root_node()
-        .whatever_context("failed to read devicetree root node")?;
-    root_node
-        .try_visit_deserialize_all_nodes_by_query("/soc/plic", |plic_node| {
-            plic_devices.push(Plic::from_node(&root_node, plic_node)?);
-            Ok(())
-        })
-        .whatever_context("failed to deserialize devicetree plic node")?
-        .map_or(Ok(()), Err)?;
+    let mut cursor = dt.tree_cursor();
+    let iter = cursor
+        .read_descendant_nodes_by_glob("/soc/plic")
+        .deserialize_node::<PlicNode>();
+    for plic_node in iter {
+        let plic_node =
+            plic_node.whatever_context("failed to deserialize plic node in devicetree")?;
+        let plic_device = Plic::from_node(dt, plic_node)?;
+        plic_devices.push(plic_device);
+    }
     Ok(plic_devices)
 }
 
 impl Plic {
-    fn from_node(
-        root_node: &NodeCursor<'_, '_>,
-        plic_node: PlicNode,
-    ) -> Result<Arc<Self>, GenericError> {
+    fn from_node(dt: &Devicetree, plic_node: PlicNode) -> Result<Arc<Self>, GenericError> {
         let PlicNode {
             path,
             device,
@@ -63,7 +61,8 @@ impl Plic {
             .assume_one()
             .whatever_context("invalid 'reg' entries in plic node")?;
         let range = reg.range();
-        let context_map = deserialize_context_map(root_node, &device)?;
+        let context_map = deserialize_context_map(dt, &device)
+            .whatever_context("failed to deserialize devicetree plic node")?;
         let plic = Arc::new(Self {
             path: path.0,
             mmio: SpinMutex::new(PlicMmio {
@@ -79,7 +78,7 @@ impl Plic {
 }
 
 fn deserialize_context_map(
-    root_node: &NodeCursor<'_, '_>,
+    dt: &Devicetree,
     device: &InterruptGeneratingDevice<'_>,
 ) -> Result<BTreeMap<Cpuid, PlicContext>, GenericError> {
     let mut map = BTreeMap::new();
@@ -94,29 +93,43 @@ fn deserialize_context_map(
             continue;
         }
 
-        root_node
-            .visit_node_by_query(
-                interrupt.parent_path(),
-                |parent| -> Result<(), GenericError> {
-                    let Some(cpu_node) = parent.parent() else {
-                        return Ok(());
-                    };
-                    if cpu_node.node().name() != "cpu" {
-                        return Ok(());
-                    }
-                    let reg = cpu_node
-                        .deserialize_property::<Reg<'_>>("reg")
-                        .whatever_context("failed to deserialize devicetree cpu node")?;
-                    let reg = reg
-                        .into_iter()
-                        .assume_one()
-                        .whatever_context("invalid 'reg' entries in cpu node")?;
-                    let cpuid = Cpuid::from_raw(reg.range().start);
-                    map.insert(cpuid, PlicContext { id });
-                    Ok(())
-                },
-            )
-            .whatever_context("failed to read devicetree")?;
+        let Some(cpuid) = deserialize_cpuid(dt, interrupt.parent_path())
+            .whatever_context("failed to deserialize devicetree cpu node")?
+        else {
+            continue;
+        };
+        map.insert(cpuid, PlicContext { id });
     }
     Ok(map)
+}
+
+#[derive(DeserializeNode)]
+struct CpuNode<'blob> {
+    #[devtree(property)]
+    reg: Reg<'blob>,
+}
+
+fn deserialize_cpuid(dt: &Devicetree, intc_path: &ByteStr) -> Result<Option<Cpuid>, GenericError> {
+    let mut cursor = dt.tree_cursor();
+    let Some(_intc_node) = cursor
+        .read_node_by_path(intc_path)
+        .whatever_context("failed to read devicetree")?
+    else {
+        return Ok(None);
+    };
+    let Some(cpu_node) = cursor.seek_parent_start() else {
+        return Ok(None);
+    };
+    if cpu_node.name() != "cpu" {
+        return Ok(None);
+    }
+    let CpuNode { reg } = cursor
+        .deserialize_node()
+        .whatever_context("failed to deserialize devicetree cpu node")?;
+    let reg = reg
+        .into_iter()
+        .assume_one()
+        .whatever_context("invalid 'reg' entries in cpu node")?;
+    let cpuid = Cpuid::from_raw(reg.range().start);
+    Ok(Some(cpuid))
 }

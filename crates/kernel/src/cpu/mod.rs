@@ -1,5 +1,8 @@
 use alloc::{slice, vec::Vec};
-use core::{fmt, iter::Peekable};
+use core::{
+    fmt,
+    iter::{FusedIterator, Peekable},
+};
 
 use devtree::Devicetree;
 use platform_cast::CastFrom as _;
@@ -144,6 +147,8 @@ impl Iterator for RemoteCpuMaskIter {
         }
     }
 }
+
+impl FusedIterator for RemoteCpuMaskIter {}
 
 pub fn remote_cpu_masks() -> RemoteCpuMaskIter {
     let current_cpuid = current().id();

@@ -40,7 +40,7 @@
 
 #![cfg_attr(not(test), no_std)]
 
-use core::{mem, ops::Range, slice};
+use core::{iter::FusedIterator, mem, ops::Range, slice};
 
 use arrayvec::ArrayVec;
 
@@ -377,6 +377,8 @@ impl<const CAP: usize> ExactSizeIterator for IntoIter<CAP> {
         self.iter.len()
     }
 }
+
+impl<const CAP: usize> FusedIterator for IntoIter<CAP> {}
 
 impl<'a, const CAP: usize> IntoIterator for &'a RangeSet<CAP> {
     type Item = &'a Range<usize>;

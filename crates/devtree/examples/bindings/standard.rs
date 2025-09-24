@@ -44,7 +44,7 @@ pub struct Root<'blob> {
     // - aliases: custom deserialization into a PropertyCollection (BTreeMap)
     #[devtree(child(
         default,
-        deserialize_with = util::deserialize_node_as_property_collection
+        deserialize_with = util::deserialize_node_as_property_collection,
     ))]
     pub aliases: BTreeMap<&'blob ByteStr, &'blob ByteStr>,
 
@@ -140,7 +140,6 @@ pub struct Cpu<'blob> {
     // Node unit address.
     #[devtree(node)]
     pub unit_address: NodeUnitAddress<'blob>,
-
     // Required properties.
     #[devtree(property)]
     pub device_type: &'blob ByteStr,
@@ -154,14 +153,14 @@ pub struct Cpu<'blob> {
         name = "clock-frequency",
         fallback = "parent",
         default,
-        deserialize_with = |pctx| util::deserialize_u64_or_u32_property(pctx).map(Some),
+        deserialize_with = |de| util::deserialize_u64_or_u32_property(de).map(Some),
     ))]
     pub clock_frequency: Option<u64>,
     #[devtree(property(
         name = "timebase-frequency",
         fallback = "parent",
         default,
-        deserialize_with = |pctx| util::deserialize_u64_or_u32_property(pctx).map(Some),
+        deserialize_with = |de| util::deserialize_u64_or_u32_property(de).map(Some),
     ))]
     pub timebase_frequency: Option<u64>,
 

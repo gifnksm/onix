@@ -1,13 +1,16 @@
 #![feature(error_generic_member_access)]
 #![no_std]
 
+extern crate alloc;
+
+use alloc::{boxed::Box, string::String};
 use core::{
     error::{self, Error},
     fmt,
 };
 
 use ansi_term::{Color, WithFg};
-use snafu::GenerateImplicitData;
+use snafu::{GenerateImplicitData, Snafu};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Location(&'static core::panic::Location<'static>);
@@ -36,6 +39,19 @@ impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
+}
+
+#[derive(Debug, Snafu)]
+#[snafu(whatever, display("{message}"))]
+#[snafu(provide(ref, priority, Location => location))]
+#[snafu(provide(opt, ref, chain, dyn core::error::Error => source.as_deref()))]
+pub struct GenericError {
+    message: String,
+    #[snafu(implicit)]
+    location: Location,
+    #[snafu(source(from(Box<dyn core::error::Error>, Some)))]
+    #[snafu(provide(false))]
+    source: Option<Box<dyn core::error::Error>>,
 }
 
 pub struct Report<E> {

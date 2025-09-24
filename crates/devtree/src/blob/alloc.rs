@@ -1,3 +1,5 @@
+extern crate alloc;
+
 use alloc::{borrow::ToOwned, boxed::Box};
 
 use super::Devicetree;

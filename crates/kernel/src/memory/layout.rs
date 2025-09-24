@@ -1,7 +1,11 @@
 use alloc::format;
 use core::ops::Range;
 
-use devtree::{DeserializeNode, Devicetree, types::property::Reg};
+use devtree::{
+    DeserializeNode, Devicetree,
+    tree_cursor::{TreeCursor as _, TreeIterator as _},
+    types::property::Reg,
+};
 use range_set::RangeSet;
 use snafu::ResultExt as _;
 use sv39::MapPageFlags;
@@ -62,41 +66,32 @@ impl HeapLayout {
     pub fn new(dt: &Devicetree) -> Result<Self, GenericError> {
         let mut available_ranges = RangeSet::<128>::new();
 
-        let root_node = dt
-            .read_root_node()
-            .whatever_context("failed to read devicetree root node")?;
-        root_node
-            .try_visit_all_nodes_by_query("/memory", |node| -> Result<(), GenericError> {
-                let memory = node
-                    .deserialize_node::<Memory>()
-                    .whatever_context("failed to deserialize devicetree memory node")?;
-                for reg in memory.reg {
-                    available_ranges.insert(reg.range());
-                }
-                Ok(())
-            })
-            .whatever_context("failed to read devicetree node")?
-            .map_or(Ok(()), Err)?;
+        let mut cursor = dt.tree_cursor();
+        let iter = cursor
+            .read_descendant_nodes_by_glob("/memory")
+            .deserialize_node::<Memory>();
+        for memory in iter {
+            let memory = memory.whatever_context("failed to deserialize devicetree memory node")?;
+            for reg in memory.reg {
+                available_ranges.insert(reg.range());
+            }
+        }
 
         for rsv in dt.memory_reservation_map() {
             available_ranges.remove(rsv.address_range());
         }
 
-        root_node
-            .try_visit_all_nodes_by_query(
-                "/reserved-memory/*",
-                |node| -> Result<(), GenericError> {
-                    let region = node
-                        .deserialize_node::<ReservedMemoryRegion>()
-                        .whatever_context("failed to deserialize reserved-memory node")?;
-                    for reg in region.reg {
-                        available_ranges.remove(reg.range());
-                    }
-                    Ok(())
-                },
-            )
-            .whatever_context("failed to read devicetree node")?
-            .map_or(Ok(()), Err)?;
+        let mut cursor = dt.tree_cursor();
+        let iter = cursor
+            .read_descendant_nodes_by_glob("/reserved-memory/*")
+            .deserialize_node::<ReservedMemoryRegion>();
+        for reserved_node in iter {
+            let reserved_node = reserved_node
+                .whatever_context("failed to deserialize memory node in devicetree")?;
+            for reg in reserved_node.reg {
+                available_ranges.remove(reg.range());
+            }
+        }
 
         available_ranges.remove(kernel_reserved_range());
         Ok(Self { available_ranges })

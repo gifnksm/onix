@@ -2,6 +2,7 @@ use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
 use devtree::{
     DeserializeNode, Devicetree,
+    tree_cursor::{TreeCursor as _, TreeIterator as _},
     types::{
         node::{Interrupt, InterruptGeneratingDevice, NodePath},
         property::{Compatible, Reg},
@@ -36,17 +37,16 @@ struct SerialNode<'blob> {
 pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<SerialDevice>>, GenericError> {
     let mut serial_devices = Vec::new();
 
-    let root_node = dt
-        .read_root_node()
-        .whatever_context("failed to devicetree root node")?;
-    root_node
-        .try_visit_deserialize_all_nodes_by_query("/soc/serial", |serial_node| {
-            let device = SerialDevice::from_node(serial_node)?;
-            serial_devices.push(Arc::new(device));
-            Ok(())
-        })
-        .whatever_context("failed to deserialize devicetree serial node")?
-        .map_or(Ok(()), Err)?;
+    let mut cursor = dt.tree_cursor();
+    let iter = cursor
+        .read_descendant_nodes_by_glob("/soc/serial")
+        .deserialize_node::<SerialNode>();
+    for serial_node in iter {
+        let serial_node =
+            serial_node.whatever_context("failed to deserialize serial node in devicetree")?;
+        let device = SerialDevice::from_node(serial_node)?;
+        serial_devices.push(Arc::new(device));
+    }
     Ok(serial_devices)
 }
 

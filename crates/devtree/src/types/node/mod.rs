@@ -1,19 +1,9 @@
 #[cfg(feature = "alloc")]
 pub use self::alloc::*;
-use super::property::{AddressCells, SizeCells};
 use crate::types::ByteStr;
 
 #[cfg(feature = "alloc")]
 mod alloc;
-
-#[derive(Debug, devtree_derive::DeserializeNode, Clone, Copy, PartialEq, Eq)]
-#[devtree(crate = crate)]
-pub struct AddressSpace {
-    #[devtree(property(name = "#address-cells"))]
-    pub address_cells: AddressCells,
-    #[devtree(property(name = "#size-cells"))]
-    pub size_cells: SizeCells,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NodeFullName<'blob>(&'blob ByteStr);
