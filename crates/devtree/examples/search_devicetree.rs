@@ -92,8 +92,11 @@ fn search_blob_by_glob(args: &Args, path: &Path) -> Result<(), GenericError> {
         let found = tree_cursor
             .read_node_by_phandle(Phandle::new(phandle))
             .whatever_context("failed to read devicetree blob")?;
-        if let Some(node) = found {
-            println!("{}", PrintNode::new(args, &node, &tree_cursor));
+        if let Some(found) = found {
+            println!(
+                "{}",
+                PrintNode::new(args, found.node(), found.tree_cursor())
+            );
         } else {
             println!("No node found with phandle {phandle}");
         }

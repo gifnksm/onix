@@ -4,15 +4,15 @@ use crate::{
     blob::Property,
     de::{
         DeserializeProperty, PropertyDeserializer,
-        error::{DeserializeError, DeserializePropertyError},
+        error::{DeserializeError, DeserializeNodeError, DeserializePropertyError},
     },
     polyfill,
     tree_cursor::TreeCursor as _,
     types::{
         ByteStr,
         property::{
-            AddressCells, ByteStrList, Compatible, InterruptCells, Model, Phandle, Ranges, Reg,
-            SizeCells, Status, StrList, U32Array,
+            AddressCells, ByteStrList, Compatible, InterruptCells, Model, Phandle, PropertyName,
+            Ranges, Reg, SizeCells, Status, StrList, U32Array,
         },
     },
 };
@@ -31,6 +31,15 @@ fn deserialize_byte_str_until_last_nul<'blob>(
     let (bytes, _) = polyfill::slice_rsplit_once(property.value(), |&c| c == 0)
         .ok_or_else(|| DeserializePropertyError::missing_nul_in_string_value(property))?;
     Ok(bytes)
+}
+
+impl<'blob> DeserializeProperty<'blob> for PropertyName<'blob> {
+    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    where
+        D: PropertyDeserializer<'de, 'blob> + ?Sized,
+    {
+        Ok(Self::new(de.property().name()))
+    }
 }
 
 impl<'blob> DeserializeProperty<'blob> for Property<'blob> {
@@ -292,7 +301,11 @@ impl<'blob> DeserializeProperty<'blob> for Reg<'blob> {
         let RegParent {
             address_cells,
             size_cells,
-        } = de.clone_tree_cursor()?.deserialize_parent()?;
+        } = de
+            .clone_tree_cursor()?
+            .read_parent()?
+            .ok_or_else(|| DeserializeNodeError::missing_parent_node(de.node()))?
+            .deserialize_node()?;
 
         let unit = address_cells.value() + size_cells.value();
         if !value.len().is_multiple_of(unit) {
@@ -329,7 +342,11 @@ impl<'blob> DeserializeProperty<'blob> for Ranges<'blob> {
     {
         let RangesParent {
             parent_address_cells,
-        } = de.clone_tree_cursor()?.deserialize_parent()?;
+        } = de
+            .clone_tree_cursor()?
+            .read_parent()?
+            .ok_or_else(|| DeserializeNodeError::missing_parent_node(de.node()))?
+            .deserialize_node()?;
         let RangesNode {
             child_address_cells,
             child_size_cells,

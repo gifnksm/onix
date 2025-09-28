@@ -74,6 +74,7 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
 pub trait PropertyDeserializer<'de, 'blob> {
     type TreeCursor: TreeCursor<'blob>;
 
+    fn node(&self) -> &Node<'blob>;
     fn property(&self) -> &Property<'blob>;
     fn tree_cursor(&self) -> &Self::TreeCursor;
 

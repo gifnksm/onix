@@ -37,6 +37,7 @@ mod log;
 mod cpu_local;
 
 mod boot;
+mod chosen;
 mod cpu;
 mod drivers;
 mod error;
@@ -81,6 +82,8 @@ fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> Result<KernelStack, Generic
     unsafe {
         memory::allocator::add_heap_ranges(heap_layout.heap_ranges());
     }
+
+    chosen::init(dt).whatever_context("failed to initialize chosen node")?;
 
     cpu::init(dt).whatever_context("failed to initialize CPU table")?;
     cpu_local::init();
@@ -170,16 +173,19 @@ fn spawn_console_task() {
 }
 
 extern "C" fn console_task(_arg: *mut c_void) -> ! {
-    // TODO: retrieve serial path from devicetree
-    let serial = drivers::serial::find_serial_by_dtree_path("/soc/serial@10000000").unwrap();
+    let stdout_path = chosen::stdout_path().unwrap();
+    let stdin_path = chosen::stdin_path().unwrap();
+
+    let serial_stdout = drivers::serial::find_serial_by_dtree_path(stdout_path).unwrap();
+    let serial_stdin = drivers::serial::find_serial_by_dtree_path(stdin_path).unwrap();
     loop {
         let mut bytes = [0; 64];
-        let nread = serial.read(&mut bytes);
+        let nread = serial_stdin.read(&mut bytes);
         if nread > 0 {
             // echo back
             let mut nwritten = 0;
             while nwritten < nread {
-                nwritten += serial.write(&bytes[..nread][nwritten..]);
+                nwritten += serial_stdout.write(&bytes[..nread][nwritten..]);
             }
         }
     }

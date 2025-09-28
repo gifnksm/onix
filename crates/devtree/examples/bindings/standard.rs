@@ -17,7 +17,7 @@ use devtree::{
     types::{
         ByteStr,
         node::{NodeFullName, NodeUnitAddress},
-        property::{AddressCells, Compatible, Model, Ranges, Reg, SizeCells, Status},
+        property::{AddressCells, Compatible, Model, PropertyName, Ranges, Reg, SizeCells, Status},
     },
 };
 
@@ -46,7 +46,7 @@ pub struct Root<'blob> {
         default,
         deserialize_with = util::deserialize_node_as_property_collection,
     ))]
-    pub aliases: BTreeMap<&'blob ByteStr, &'blob ByteStr>,
+    pub aliases: BTreeMap<PropertyName<'blob>, &'blob ByteStr>,
 
     // - memory: repeated children nodes
     #[devtree(repeated_children)]

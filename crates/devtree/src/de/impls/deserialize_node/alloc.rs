@@ -39,6 +39,8 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
+        let node = de.node().clone();
+
         let mut interrupts = None;
         let mut interrupt_parent = None;
         let mut interrupts_extended = None;
@@ -74,8 +76,9 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
                     path,
                     interrupt_cells,
                 } = root_cursor
-                    .deserialize_phandle_node(phandle)?
-                    .ok_or_else(|| DeserializeError::missing_phandle_node(phandle))?;
+                    .read_node_by_phandle(phandle)?
+                    .ok_or_else(|| DeserializeError::missing_phandle_node(phandle))?
+                    .deserialize_node()?;
 
                 let (specifier, rest) = chunks
                     .split_at_checked(interrupt_cells.value())
@@ -103,10 +106,15 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
                     let mut root_cursor = de.clone_tree_cursor()?;
                     let _root = root_cursor.seek_root_start()?;
                     root_cursor
-                        .deserialize_phandle_node(phandle)?
+                        .read_node_by_phandle(phandle)?
                         .ok_or_else(|| DeserializeError::missing_phandle_node(phandle))?
+                        .deserialize_node()?
                 }
-                None => de.clone_tree_cursor()?.deserialize_parent()?,
+                None => de
+                    .clone_tree_cursor()?
+                    .read_parent()?
+                    .ok_or_else(|| DeserializeNodeError::missing_parent_node(&node))?
+                    .deserialize_node()?,
             };
 
             if !chunks.len().is_multiple_of(interrupt_cells.value()) {

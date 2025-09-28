@@ -33,6 +33,23 @@ macro_rules! forward_integral_fmt_impls {
     };
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PropertyName<'blob> {
+    value: &'blob ByteStr,
+}
+
+impl<'blob> PropertyName<'blob> {
+    #[must_use]
+    pub fn new(value: &'blob ByteStr) -> Self {
+        Self { value }
+    }
+
+    #[must_use]
+    pub fn value(&self) -> &'blob ByteStr {
+        self.value
+    }
+}
+
 #[repr(transparent)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct U32Array {

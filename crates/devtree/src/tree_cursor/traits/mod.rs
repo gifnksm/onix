@@ -7,10 +7,7 @@ use super::{
 };
 use crate::{
     blob::{Item, Node},
-    de::{
-        DeserializeNode, NodeDeserializer,
-        error::{DeserializeError, DeserializeNodeError},
-    },
+    de::{DeserializeNode, NodeDeserializer, error::DeserializeError},
     token_cursor::TokenCursor,
     types::{ByteStr, property::Phandle},
 };
@@ -62,6 +59,13 @@ pub trait TreeCursor<'blob> {
         iter::ReadChildren::new(self)
     }
 
+    fn read_parent(&mut self) -> Result<Option<NodeWithCursor<'_, 'blob, Self>>, ReadTreeError> {
+        let Some(parent) = self.seek_parent_start() else {
+            return Ok(None);
+        };
+        Ok(Some(NodeWithCursor::new(parent, self)))
+    }
+
     #[must_use]
     fn read_descendant_items(&mut self) -> iter::ReadDescendantItems<'_, 'blob, Self> {
         iter::ReadDescendantItems::new(self)
@@ -91,7 +95,7 @@ pub trait TreeCursor<'blob> {
     fn read_node_by_phandle(
         &mut self,
         phandle: Phandle,
-    ) -> Result<Option<Node<'blob>>, ReadTreeError> {
+    ) -> Result<Option<NodeWithCursor<'_, 'blob, Self>>, ReadTreeError> {
         let property = self
             .read_descendant_properties()
             .find(|property| {
@@ -105,17 +109,20 @@ pub trait TreeCursor<'blob> {
             return Ok(None);
         }
         let node = self.seek_node_start().unwrap();
-        Ok(Some(node))
+        Ok(Some(NodeWithCursor::new(node, self)))
     }
 
-    fn read_node_by_path<'path>(
+    fn read_node_by_path<'path, P>(
         &mut self,
-        path: &'path ByteStr,
-    ) -> Result<Option<Node<'blob>>, ReadTreeError> {
-        let mut iter = self.read_descendant_nodes_by_glob(path);
+        path: &'path P,
+    ) -> Result<Option<NodeWithCursor<'_, 'blob, Self>>, ReadTreeError>
+    where
+        P: AsRef<ByteStr> + ?Sized + 'path,
+    {
+        let mut iter = self.read_descendant_nodes_by_glob(path.as_ref());
         if let Some(node) = iter.next() {
             let node = node?;
-            return Ok(Some(node));
+            return Ok(Some(NodeWithCursor::new(node, self)));
         }
         Ok(None)
     }
@@ -132,33 +139,6 @@ pub trait TreeCursor<'blob> {
     {
         let mut de = self.node_deserializer()?;
         T::deserialize_node(&mut de)
-    }
-
-    fn deserialize_parent<T>(&mut self) -> Result<T, DeserializeError>
-    where
-        T: DeserializeNode<'blob>,
-    {
-        let _parent = self.seek_parent_start().ok_or_else(|| {
-            if let Some(node) = self.node() {
-                DeserializeNodeError::missing_parent_node(&node).into()
-            } else {
-                DeserializeError::missing_current_node()
-            }
-        })?;
-        self.deserialize_node()
-    }
-
-    fn deserialize_phandle_node<T>(
-        &mut self,
-        phandle: Phandle,
-    ) -> Result<Option<T>, DeserializeError>
-    where
-        T: DeserializeNode<'blob>,
-    {
-        let Some(_node) = self.read_node_by_phandle(phandle)? else {
-            return Ok(None);
-        };
-        self.deserialize_node().map(Some)
     }
 
     #[must_use]
@@ -180,5 +160,40 @@ pub trait TreeIterator<'blob>: Iterator {
         T: DeserializeNode<'blob>,
     {
         DeserializedNodes::new(self)
+    }
+}
+
+pub struct NodeWithCursor<'cursor, 'blob, C>
+where
+    C: ?Sized,
+{
+    node: Node<'blob>,
+    tree_cursor: &'cursor mut C,
+}
+
+impl<'cursor, 'blob, C> NodeWithCursor<'cursor, 'blob, C>
+where
+    C: TreeCursor<'blob> + ?Sized,
+{
+    fn new(node: Node<'blob>, tree_cursor: &'cursor mut C) -> Self {
+        Self { node, tree_cursor }
+    }
+
+    #[must_use]
+    pub fn node(&self) -> &Node<'blob> {
+        &self.node
+    }
+
+    #[must_use]
+    pub fn tree_cursor(&self) -> &C {
+        self.tree_cursor
+    }
+
+    pub fn deserialize_node<T>(self) -> Result<T, DeserializeError>
+    where
+        T: DeserializeNode<'blob>,
+    {
+        let mut de = self.tree_cursor.node_deserializer()?;
+        T::deserialize_node(&mut de)
     }
 }

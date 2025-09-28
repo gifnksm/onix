@@ -53,6 +53,7 @@ where
         Option<ItemDeserializer<Self::PropertyDeserializer<'_>, Self::NodeDeserializer<'_>>>,
         DeserializeError,
     > {
+        let node = self.node().clone();
         if self.cursor.depth().is_none() {
             let _root = self.cursor.seek_root_start()?;
         }
@@ -60,9 +61,9 @@ where
             return Ok(None);
         };
         let sub_de = match item {
-            Item::Property(property) => {
-                ItemDeserializer::Property(DefaultPropertyDeserializer::new(property, self.cursor))
-            }
+            Item::Property(property) => ItemDeserializer::Property(
+                DefaultPropertyDeserializer::new(node, property, self.cursor),
+            ),
             Item::Node(child) => {
                 ItemDeserializer::Node(DefaultNodeDeserializer::new(child, self.cursor))
             }
