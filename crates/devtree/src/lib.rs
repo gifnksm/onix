@@ -2,7 +2,7 @@
     feature = "unstable-provider-api",
     feature(error_generic_member_access)
 )]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![no_std]
 
 pub use devtree_derive::DeserializeNode;
