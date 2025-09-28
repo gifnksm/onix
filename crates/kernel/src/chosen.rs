@@ -1,6 +1,6 @@
 use devtree::{
     DeserializeNode, Devicetree,
-    tree_cursor::TreeCursor as _,
+    tree_cursor::{NodeWithCursor, TreeCursor as _},
     types::{ByteStr, ByteString},
 };
 use snafu::ResultExt as _;
@@ -30,7 +30,7 @@ pub fn init(dt: &Devicetree) -> Result<(), GenericError> {
         .tree_cursor()
         .read_node_by_path("/chosen")
         .whatever_context("failed to read chosen node")?
-        .map(devtree::tree_cursor::NodeWithCursor::deserialize_node::<ChosenNode<'_>>)
+        .map(NodeWithCursor::deserialize_node::<ChosenNode<'_>>)
         .transpose()
         .whatever_context("failed to deserialize chosen node")?
         .unwrap_or_default();
