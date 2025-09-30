@@ -26,7 +26,9 @@ struct CpuNode<'blob> {
 
 pub fn deserialize(dt: &Devicetree) -> Result<Vec<Cpu>, GenericError> {
     let mut all_cpus = Vec::new();
-    let mut cursor = dt.tree_cursor();
+    let mut cursor = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
     let iter = cursor
         .read_descendant_nodes_by_glob("/cpus/cpu")
         .deserialize_node::<CpuNode>();

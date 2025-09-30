@@ -81,6 +81,11 @@ impl SymbolGenerator {
         parse_quote! { #devtree::de::NodeDeserializer::<#lt_de, #lt_blob> }
     }
 
+    pub fn trait_tree_cursor(&self) -> syn::Path {
+        let devtree = &self.devtree;
+        parse_quote! { #devtree::tree_cursor::TreeCursor }
+    }
+
     pub fn ty_error(&self) -> syn::Type {
         let devtree = &self.devtree;
         parse_quote! { #devtree::de::error::DeserializeError }
@@ -99,6 +104,11 @@ impl SymbolGenerator {
     pub fn ty_node(&self) -> syn::Type {
         let devtree = &self.devtree;
         parse_quote! { #devtree::blob::Node }
+    }
+
+    pub fn ty_tree_node_ref(&self) -> syn::Type {
+        let devtree = &self.devtree;
+        parse_quote! { #devtree::tree_cursor::TreeNodeRef }
     }
 
     pub fn ty_prop_cell_with_ty(&self, ty: &syn::Type) -> syn::Type {
@@ -173,6 +183,13 @@ pub fn expr_ok(expr: &syn::Expr) -> syn::Expr {
     let result = ty_result();
     parse_quote! {
         #result::Ok(#expr)
+    }
+}
+
+pub fn ty_option() -> syn::Path {
+    let core = path_core();
+    parse_quote! {
+        #core::option::Option
     }
 }
 

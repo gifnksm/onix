@@ -71,7 +71,7 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
                 chunks = rest;
 
                 let mut root_cursor = de.clone_tree_cursor()?;
-                let _root = root_cursor.seek_root_start()?;
+                root_cursor.seek_root_start();
                 let InterruptParentNode {
                     path,
                     interrupt_cells,
@@ -104,7 +104,7 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
             } = match interrupt_parent {
                 Some((phandle, _phandle_property)) => {
                     let mut root_cursor = de.clone_tree_cursor()?;
-                    let _root = root_cursor.seek_root_start()?;
+                    root_cursor.seek_root_start();
                     root_cursor
                         .read_node_by_phandle(phandle)?
                         .ok_or_else(|| DeserializeError::missing_phandle_node(phandle))?
@@ -112,7 +112,7 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
                 }
                 None => de
                     .clone_tree_cursor()?
-                    .read_parent()?
+                    .read_parent()
                     .ok_or_else(|| DeserializeNodeError::missing_parent_node(&node))?
                     .deserialize_node()?,
             };

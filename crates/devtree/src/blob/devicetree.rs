@@ -9,8 +9,8 @@ use crate::{
     blob::{Header, ReserveEntry},
     node_stack::{NodeStack, types::ArrayNodeStack},
     polyfill::SliceDebug as _,
-    token_cursor::types::{BlobNodeRef, BlobTokenCursor},
-    tree_cursor::types::StackBasedTreeCursor,
+    token_cursor::types::{BlobNodeHandle, BlobTokenCursor},
+    tree_cursor::{error::ReadTreeError, types::StackBasedTreeCursor},
 };
 
 #[repr(transparent)]
@@ -154,26 +154,27 @@ impl Devicetree {
         BlobTokenCursor::new(self.struct_block(), self.strings_block())
     }
 
-    #[must_use]
-    pub fn tree_cursor(&self) -> StackBasedTreeCursor<'_, BlobTokenCursor<'_>> {
+    pub fn tree_cursor(
+        &self,
+    ) -> Result<StackBasedTreeCursor<'_, BlobTokenCursor<'_>>, ReadTreeError> {
         StackBasedTreeCursor::new(self.token_cursor())
     }
 
-    #[must_use]
     pub fn tree_cursor_with_stack_size<const STACK_SIZE: usize>(
         &self,
-    ) -> StackBasedTreeCursor<'_, BlobTokenCursor<'_>, ArrayNodeStack<BlobNodeRef, STACK_SIZE>>
-    {
+    ) -> Result<
+        StackBasedTreeCursor<'_, BlobTokenCursor<'_>, ArrayNodeStack<BlobNodeHandle, STACK_SIZE>>,
+        ReadTreeError,
+    > {
         StackBasedTreeCursor::with_stack_size(self.token_cursor())
     }
 
-    #[must_use]
     pub fn tree_cursor_with_node_stack<S>(
         &self,
         node_stack: S,
-    ) -> StackBasedTreeCursor<'_, BlobTokenCursor<'_>, S>
+    ) -> Result<StackBasedTreeCursor<'_, BlobTokenCursor<'_>, S>, ReadTreeError>
     where
-        S: NodeStack<BlobNodeRef>,
+        S: NodeStack<BlobNodeHandle>,
     {
         StackBasedTreeCursor::with_node_stack(self.token_cursor(), node_stack)
     }

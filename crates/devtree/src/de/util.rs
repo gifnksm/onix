@@ -64,10 +64,7 @@ impl<'blob, T> PropertyCell<'blob, T> {
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
-        let node = de
-            .tree_cursor()
-            .node()
-            .ok_or_else(DeserializeError::missing_current_node)?;
+        let node = de.tree_cursor().node();
         Ok(Self {
             node,
             name,
@@ -129,10 +126,7 @@ impl<'blob, T> NodeCell<'blob, T> {
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
-        let node = de
-            .tree_cursor()
-            .node()
-            .ok_or_else(DeserializeError::missing_current_node)?;
+        let node = de.tree_cursor().node();
         Ok(Self {
             node,
             name,

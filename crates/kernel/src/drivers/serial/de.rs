@@ -37,7 +37,9 @@ struct SerialNode<'blob> {
 pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<SerialDevice>>, GenericError> {
     let mut serial_devices = Vec::new();
 
-    let mut cursor = dt.tree_cursor();
+    let mut cursor = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
     let iter = cursor
         .read_descendant_nodes_by_glob("/soc/serial")
         .deserialize_node::<SerialNode>();

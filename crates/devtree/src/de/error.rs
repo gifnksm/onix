@@ -43,12 +43,6 @@ pub enum DeserializeError {
         #[snafu(implicit)]
         location: Location,
     },
-    #[snafu(display("no current node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MissingCurrentNode {
-        #[snafu(implicit)]
-        location: Location,
-    },
     #[snafu(display("no node with phandle={phandle}"))]
     #[snafu(provide(ref, priority, Location => location))]
     MissingPhandleNode {
@@ -103,15 +97,6 @@ impl DeserializeError {
         use self::deserialize_error::*;
 
         CloneNotSupportedSnafu.build()
-    }
-
-    #[track_caller]
-    #[must_use]
-    pub fn missing_current_node() -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        MissingCurrentNodeSnafu.build()
     }
 
     #[track_caller]

@@ -4,10 +4,7 @@ use crate::{
     tree_cursor::TreeCursor,
 };
 
-pub struct DefaultPropertyDeserializer<'de, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct DefaultPropertyDeserializer<'de, 'blob, TC> {
     node: Node<'blob>,
     property: Property<'blob>,
     cursor: &'de TC,
@@ -15,18 +12,14 @@ where
 
 impl<'de, 'blob, TC> DefaultPropertyDeserializer<'de, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
-    pub fn new<'property>(
-        node: Node<'blob>,
-        property: Property<'blob>,
-        cursor: &'property TC,
-    ) -> Self
+    pub fn new<'property>(property: Property<'blob>, cursor: &'property TC) -> Self
     where
         'property: 'de,
     {
         Self {
-            node,
+            node: cursor.node(),
             property,
             cursor,
         }

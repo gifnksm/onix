@@ -3,15 +3,16 @@ use core::{iter::FusedIterator, marker::PhantomData};
 use super::{Glob, GlobCursor, TreeCursor, TreeIterator, error::ReadTreeError};
 use crate::{
     blob::{Item, Node, Property},
-    de::{DeserializeNode, error::DeserializeError},
+    de::{
+        DeserializeNode, DeserializeProperty,
+        error::DeserializeError,
+        types::{DefaultNodeDeserializer, DefaultPropertyDeserializer},
+    },
     tree_cursor::GlobComponent,
 };
 
 #[derive(Debug)]
-pub struct ReadItems<'tc, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct ReadItems<'tc, 'blob, TC> {
     done: bool,
     last_found_node: bool,
     tree_cursor: &'tc mut TC,
@@ -20,7 +21,7 @@ where
 
 impl<'tc, 'blob, TC> ReadItems<'tc, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     #[must_use]
     pub fn new(tree_cursor: &'tc mut TC) -> Self {
@@ -60,7 +61,7 @@ where
 
 impl<'blob, TC> Iterator for ReadItems<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Item<'blob>, ReadTreeError>;
 
@@ -69,11 +70,11 @@ where
     }
 }
 
-impl<'blob, TC> FusedIterator for ReadItems<'_, 'blob, TC> where TC: TreeCursor<'blob> + ?Sized {}
+impl<'blob, TC> FusedIterator for ReadItems<'_, 'blob, TC> where TC: TreeCursor<'blob> {}
 
 impl<'blob, TC> TreeIterator<'blob> for ReadItems<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
@@ -83,16 +84,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadProperties<'tc, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct ReadProperties<'tc, 'blob, TC> {
     iter: ReadItems<'tc, 'blob, TC>,
 }
 
 impl<'tc, 'blob, TC> ReadProperties<'tc, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     pub fn new(tree_cursor: &'tc mut TC) -> Self {
         Self {
@@ -103,7 +101,7 @@ where
 
 impl<'blob, TC> Iterator for ReadProperties<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Property<'blob>, ReadTreeError>;
 
@@ -116,11 +114,11 @@ where
     }
 }
 
-impl<'blob, TC> FusedIterator for ReadProperties<'_, 'blob, TC> where TC: TreeCursor<'blob> + ?Sized {}
+impl<'blob, TC> FusedIterator for ReadProperties<'_, 'blob, TC> where TC: TreeCursor<'blob> {}
 
 impl<'blob, TC> TreeIterator<'blob> for ReadProperties<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
@@ -130,16 +128,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadChildren<'tc, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct ReadChildren<'tc, 'blob, TC> {
     iter: ReadItems<'tc, 'blob, TC>,
 }
 
 impl<'tc, 'blob, TC> ReadChildren<'tc, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     pub fn new(tree_cursor: &'tc mut TC) -> Self {
         Self {
@@ -150,7 +145,7 @@ where
 
 impl<'blob, TC> Iterator for ReadChildren<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Node<'blob>, ReadTreeError>;
 
@@ -163,11 +158,11 @@ where
     }
 }
 
-impl<'blob, TC> FusedIterator for ReadChildren<'_, 'blob, TC> where TC: TreeCursor<'blob> + ?Sized {}
+impl<'blob, TC> FusedIterator for ReadChildren<'_, 'blob, TC> where TC: TreeCursor<'blob> {}
 
 impl<'blob, TC> TreeIterator<'blob> for ReadChildren<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
@@ -177,11 +172,8 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadDescendantItems<'tc, 'blob, TC>
-where
-    TC: ?Sized,
-{
-    min_depth: Option<usize>,
+pub struct ReadDescendantItems<'tc, 'blob, TC> {
+    min_depth: usize,
     done: bool,
     tree_cursor: &'tc mut TC,
     _phantom: PhantomData<&'blob ()>,
@@ -189,7 +181,7 @@ where
 
 impl<'tc, 'blob, TC> ReadDescendantItems<'tc, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     pub fn new(tree_cursor: &'tc mut TC) -> Self {
         Self {
@@ -234,7 +226,7 @@ where
 
 impl<'blob, TC> Iterator for ReadDescendantItems<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Item<'blob>, ReadTreeError>;
 
@@ -243,14 +235,11 @@ where
     }
 }
 
-impl<'blob, TC> FusedIterator for ReadDescendantItems<'_, 'blob, TC> where
-    TC: TreeCursor<'blob> + ?Sized
-{
-}
+impl<'blob, TC> FusedIterator for ReadDescendantItems<'_, 'blob, TC> where TC: TreeCursor<'blob> {}
 
 impl<'blob, TC> TreeIterator<'blob> for ReadDescendantItems<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
@@ -260,16 +249,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadDescendantProperties<'tc, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct ReadDescendantProperties<'tc, 'blob, TC> {
     iter: ReadDescendantItems<'tc, 'blob, TC>,
 }
 
 impl<'tc, 'blob, TC> ReadDescendantProperties<'tc, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     pub fn new(tree_cursor: &'tc mut TC) -> Self {
         Self {
@@ -280,7 +266,7 @@ where
 
 impl<'blob, TC> Iterator for ReadDescendantProperties<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Property<'blob>, ReadTreeError>;
 
@@ -293,14 +279,12 @@ where
     }
 }
 
-impl<'blob, TC> FusedIterator for ReadDescendantProperties<'_, 'blob, TC> where
-    TC: TreeCursor<'blob> + ?Sized
-{
-}
+impl<'blob, TC> FusedIterator for ReadDescendantProperties<'_, 'blob, TC> where TC: TreeCursor<'blob>
+{}
 
 impl<'blob, TC> TreeIterator<'blob> for ReadDescendantProperties<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
@@ -310,16 +294,13 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadDescendantNodes<'tc, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct ReadDescendantNodes<'tc, 'blob, TC> {
     iter: ReadDescendantItems<'tc, 'blob, TC>,
 }
 
 impl<'tc, 'blob, TC> ReadDescendantNodes<'tc, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     pub fn new(tree_cursor: &'tc mut TC) -> Self {
         Self {
@@ -330,7 +311,7 @@ where
 
 impl<'blob, TC> Iterator for ReadDescendantNodes<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Node<'blob>, ReadTreeError>;
 
@@ -343,14 +324,11 @@ where
     }
 }
 
-impl<'blob, TC> FusedIterator for ReadDescendantNodes<'_, 'blob, TC> where
-    TC: TreeCursor<'blob> + ?Sized
-{
-}
+impl<'blob, TC> FusedIterator for ReadDescendantNodes<'_, 'blob, TC> where TC: TreeCursor<'blob> {}
 
 impl<'blob, TC> TreeIterator<'blob> for ReadDescendantNodes<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
@@ -360,10 +338,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ReadDescendantNodesByGlob<'tc, 'glob, 'blob, TC>
-where
-    TC: ?Sized,
-{
+pub struct ReadDescendantNodesByGlob<'tc, 'glob, 'blob, TC> {
     min_depth: usize,
     done: bool,
     last_matched: bool,
@@ -374,7 +349,7 @@ where
 
 impl<'tc, 'glob, 'blob, TC> ReadDescendantNodesByGlob<'tc, 'glob, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     #[must_use]
     pub fn new<Q>(tree_cursor: &'tc mut TC, glob: &'glob Q) -> Self
@@ -383,7 +358,7 @@ where
     {
         let glob_cursor = glob.as_ref().cursor();
         Self {
-            min_depth: tree_cursor.depth().unwrap_or(0),
+            min_depth: tree_cursor.depth(),
             done: false,
             last_matched: false,
             glob_cursor,
@@ -401,7 +376,7 @@ where
     }
 
     fn rewind_cursors(&mut self) -> Result<Option<()>, ReadTreeError> {
-        let depth = self.tree_cursor.depth().unwrap();
+        let depth = self.tree_cursor.depth();
         assert!(depth >= self.min_depth);
         if depth == self.min_depth {
             return Ok(None);
@@ -427,23 +402,17 @@ where
             }
         }
 
-        // seek to root if no node have been read
-        if self.tree_cursor.node().is_none() {
-            let _root = self.tree_cursor.seek_root_start()?;
-            assert!(self.tree_cursor.node().is_some());
-        }
-
         loop {
-            let depth = self.tree_cursor.depth().unwrap();
+            let depth = self.tree_cursor.depth();
 
             let Some(component) = self.glob_cursor.current_component() else {
                 self.last_matched = true;
-                let node = self.tree_cursor.node().unwrap();
+                let node = self.tree_cursor.node();
                 return Ok(Some(node));
             };
 
             if component == GlobComponent::RootNode && depth == 0 {
-                let _root = self.tree_cursor.seek_root_start()?;
+                self.tree_cursor.seek_root_start();
                 self.glob_cursor.seek_descend();
                 continue;
             }
@@ -459,7 +428,7 @@ where
                 .is_some();
 
             if !matched {
-                assert_eq!(self.tree_cursor.depth(), Some(depth));
+                assert_eq!(self.tree_cursor.depth(), depth);
                 if self.rewind_cursors()?.is_none() {
                     self.done = true;
                     return Ok(None);
@@ -467,7 +436,7 @@ where
                 continue;
             }
 
-            assert_eq!(self.tree_cursor.depth(), Some(depth + 1));
+            assert_eq!(self.tree_cursor.depth(), depth + 1);
             self.glob_cursor.seek_descend();
         }
     }
@@ -475,7 +444,7 @@ where
 
 impl<'blob, TC> Iterator for ReadDescendantNodesByGlob<'_, '_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type Item = Result<Node<'blob>, ReadTreeError>;
 
@@ -485,18 +454,60 @@ where
 }
 
 impl<'blob, TC> FusedIterator for ReadDescendantNodesByGlob<'_, '_, 'blob, TC> where
-    TC: TreeCursor<'blob> + ?Sized
+    TC: TreeCursor<'blob>
 {
 }
 
 impl<'blob, TC> TreeIterator<'blob> for ReadDescendantNodesByGlob<'_, '_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     type TreeCursor = TC;
 
     fn tree_cursor(&self) -> &Self::TreeCursor {
         self.tree_cursor
+    }
+}
+
+#[derive(Debug)]
+pub struct DeserializedProperties<T, I> {
+    iter: I,
+    _phantom: PhantomData<T>,
+}
+
+impl<'blob, T, I> DeserializedProperties<T, I>
+where
+    T: DeserializeProperty<'blob>,
+    I: Iterator<Item = Result<Property<'blob>, ReadTreeError>> + TreeIterator<'blob>,
+    <I as TreeIterator<'blob>>::TreeCursor: Sized,
+{
+    #[must_use]
+    pub fn new(iter: I) -> Self {
+        Self {
+            iter,
+            _phantom: PhantomData,
+        }
+    }
+
+    fn try_next(&mut self) -> Result<Option<T>, DeserializeError> {
+        let Some(property) = self.iter.next().transpose()? else {
+            return Ok(None);
+        };
+        let mut de = DefaultPropertyDeserializer::new(property, self.iter.tree_cursor());
+        T::deserialize_property(&mut de).map(Some)
+    }
+}
+
+impl<'blob, T, I> Iterator for DeserializedProperties<T, I>
+where
+    T: DeserializeProperty<'blob>,
+    I: Iterator<Item = Result<Property<'blob>, ReadTreeError>> + TreeIterator<'blob>,
+    <I as TreeIterator<'blob>>::TreeCursor: Sized,
+{
+    type Item = Result<T, DeserializeError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.try_next().transpose()
     }
 }
 
@@ -520,11 +531,8 @@ where
         }
     }
 
-    fn try_next(&mut self) -> Result<Option<T>, DeserializeError>
-    where
-        T: DeserializeNode<'blob>,
-    {
-        let Some(_node) = self.iter.next().transpose()? else {
+    fn try_next(&mut self) -> Result<Option<T>, DeserializeError> {
+        let Some(node) = self.iter.next().transpose()? else {
             return Ok(None);
         };
         let mut cursor = self
@@ -532,7 +540,8 @@ where
             .tree_cursor()
             .try_clone()
             .ok_or_else(DeserializeError::clone_not_supported)?;
-        cursor.deserialize_node().map(Some)
+        let mut de = DefaultNodeDeserializer::new(node, &mut cursor);
+        T::deserialize_node(&mut de).map(Some)
     }
 }
 

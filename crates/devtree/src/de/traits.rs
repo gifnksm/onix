@@ -1,4 +1,4 @@
-use super::error::{DeserializeError, DeserializeNodeError};
+use super::error::DeserializeError;
 use crate::{
     blob::{Node, Property},
     tree_cursor::TreeCursor,
@@ -28,12 +28,14 @@ pub trait PropertyCollection<'blob>: Default {
         D: PropertyDeserializer<'de, 'blob> + ?Sized;
 }
 
+#[derive(Debug)]
 pub enum ItemDeserializer<PD, ND> {
     Property(PD),
     Node(ND),
 }
 
 impl<PD, ND> ItemDeserializer<PD, ND> {
+    #[must_use]
     pub fn as_property(&self) -> Option<&PD> {
         match self {
             Self::Property(de) => Some(de),
@@ -41,6 +43,7 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
         }
     }
 
+    #[must_use]
     pub fn as_node(&self) -> Option<&ND> {
         match self {
             Self::Property(_) => None,
@@ -48,6 +51,7 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
         }
     }
 
+    #[must_use]
     pub fn into_property(self) -> Option<PD> {
         match self {
             Self::Property(de) => Some(de),
@@ -55,6 +59,7 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
         }
     }
 
+    #[must_use]
     pub fn into_node(self) -> Option<ND> {
         match self {
             Self::Property(_) => None,
@@ -62,10 +67,12 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
         }
     }
 
+    #[must_use]
     pub fn is_property(&self) -> bool {
         matches!(self, Self::Property(_))
     }
 
+    #[must_use]
     pub fn is_node(&self) -> bool {
         matches!(self, Self::Node(_))
     }
@@ -87,6 +94,7 @@ pub trait PropertyDeserializer<'de, 'blob> {
             .ok_or_else(DeserializeError::clone_not_supported)
     }
 }
+
 pub trait NodeDeserializer<'de, 'blob> {
     type TreeCursor: TreeCursor<'blob>;
     type PropertyDeserializer<'sub_de>: PropertyDeserializer<'sub_de, 'blob>
@@ -149,41 +157,5 @@ pub trait NodeDeserializer<'de, 'blob> {
         NH: for<'sub_de> FnMut(Self::NodeDeserializer<'sub_de>) -> Result<(), DeserializeError>,
     {
         self.with_items(|_| Ok(()), node_handler)
-    }
-
-    fn with_node_de<F, T>(&self, f: F) -> Result<T, DeserializeError>
-    where
-        F: FnOnce(
-            Node<'blob>,
-            <Self::TreeCursor as TreeCursor<'blob>>::NodeDeserializer<'_>,
-        ) -> Result<T, DeserializeError>,
-    {
-        let mut cursor = self.clone_tree_cursor()?;
-        cursor
-            .seek_node_start()
-            .ok_or_else(DeserializeError::missing_current_node)?;
-        let node = cursor.node().unwrap();
-        let de = cursor.node_deserializer()?;
-        f(node, de)
-    }
-
-    fn with_parent_de<F, T>(&self, f: F) -> Result<T, DeserializeError>
-    where
-        F: FnOnce(
-            Node<'blob>,
-            <Self::TreeCursor as TreeCursor<'blob>>::NodeDeserializer<'_>,
-        ) -> Result<T, DeserializeError>,
-    {
-        let mut cursor = self.clone_tree_cursor()?;
-        cursor.seek_parent_start().ok_or_else(|| {
-            if let Some(node) = cursor.node() {
-                DeserializeNodeError::missing_parent_node(&node).into()
-            } else {
-                DeserializeError::missing_current_node()
-            }
-        })?;
-        let node = cursor.node().unwrap();
-        let de = cursor.node_deserializer()?;
-        f(node, de)
     }
 }

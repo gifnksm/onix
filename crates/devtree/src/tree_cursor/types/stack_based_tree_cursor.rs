@@ -2,7 +2,6 @@ use core::{iter, marker::PhantomData, slice};
 
 use crate::{
     blob::{Item, Node},
-    de::{error::DeserializeError, types::DefaultNodeDeserializer},
     node_stack::{NodeStack, error::StackOverflowError, types::ArrayNodeStack},
     token_cursor::{Token, TokenCursor},
     tree_cursor::{TreeCursor, error::ReadTreeError},
@@ -17,58 +16,64 @@ enum ReadState {
 }
 
 #[derive(Debug, Clone)]
-pub struct StackBasedTreeCursor<'blob, C, S = ArrayNodeStack<<C as TokenCursor<'blob>>::NodeRef, 8>>
-where
-    C: TokenCursor<'blob>,
+pub struct StackBasedTreeCursor<
+    'blob,
+    TC,
+    S = ArrayNodeStack<<TC as TokenCursor<'blob>>::NodeHandle, 8>,
+> where
+    TC: TokenCursor<'blob>,
 {
     node_stack: S,
     state: ReadState,
-    token_cursor: C,
+    token_cursor: TC,
     _phantom: PhantomData<&'blob ()>,
 }
 
-impl<'blob, C> StackBasedTreeCursor<'blob, C>
+impl<'blob, TC> StackBasedTreeCursor<'blob, TC>
 where
-    C: TokenCursor<'blob>,
+    TC: TokenCursor<'blob>,
 {
-    #[must_use]
-    pub fn new(token_cursor: C) -> Self {
+    pub fn new(token_cursor: TC) -> Result<Self, ReadTreeError> {
         Self::with_node_stack(token_cursor, ArrayNodeStack::default())
     }
 }
 
-impl<'blob, C, const STACK_SIZE: usize>
-    StackBasedTreeCursor<'blob, C, ArrayNodeStack<<C as TokenCursor<'blob>>::NodeRef, STACK_SIZE>>
+impl<'blob, TC, const STACK_SIZE: usize>
+    StackBasedTreeCursor<
+        'blob,
+        TC,
+        ArrayNodeStack<<TC as TokenCursor<'blob>>::NodeHandle, STACK_SIZE>,
+    >
 where
-    C: TokenCursor<'blob>,
+    TC: TokenCursor<'blob>,
 {
-    #[must_use]
-    pub fn with_stack_size(token_cursor: C) -> Self {
+    pub fn with_stack_size(token_cursor: TC) -> Result<Self, ReadTreeError> {
         StackBasedTreeCursor::with_node_stack(token_cursor, ArrayNodeStack::default())
     }
 }
 
-impl<'blob, C, S> StackBasedTreeCursor<'blob, C, S>
+impl<'blob, TC, S> StackBasedTreeCursor<'blob, TC, S>
 where
-    C: TokenCursor<'blob>,
-    S: NodeStack<C::NodeRef>,
+    TC: TokenCursor<'blob>,
+    S: NodeStack<TC::NodeHandle>,
 {
-    #[must_use]
-    pub fn with_node_stack(token_cursor: C, node_stack: S) -> Self {
-        Self {
+    pub fn with_node_stack(token_cursor: TC, node_stack: S) -> Result<Self, ReadTreeError> {
+        let mut this = Self {
             node_stack,
             state: ReadState::Init,
             token_cursor,
             _phantom: PhantomData,
-        }
+        };
+        this.read_item_descend()?;
+        Ok(this)
     }
 
     pub fn clone_with_node_stack<U>(
         &self,
         mut node_stack: U,
-    ) -> Result<StackBasedTreeCursor<'blob, C, U>, U>
+    ) -> Result<StackBasedTreeCursor<'blob, TC, U>, U>
     where
-        U: NodeStack<C::NodeRef>,
+        U: NodeStack<TC::NodeHandle>,
     {
         let res = node_stack.clone_from_stack(&self.node_stack);
         if matches!(res, Err(StackOverflowError)) {
@@ -83,12 +88,12 @@ where
     }
 }
 
-impl<'blob, C, S> TreeCursor<'blob> for StackBasedTreeCursor<'blob, C, S>
+impl<'blob, TC, S> TreeCursor<'blob> for StackBasedTreeCursor<'blob, TC, S>
 where
-    C: TokenCursor<'blob>,
-    S: NodeStack<C::NodeRef>,
+    TC: TokenCursor<'blob>,
+    S: NodeStack<TC::NodeHandle>,
 {
-    type TokenCursor = C;
+    type TokenCursor = TC;
 
     fn try_clone(&self) -> Option<Self> {
         let node_stack = self.node_stack.try_clone()?;
@@ -100,94 +105,77 @@ where
         })
     }
 
-    fn token_cursor(&self) -> &C {
+    fn token_cursor(&self) -> &TC {
         &self.token_cursor
     }
 
-    fn depth(&self) -> Option<usize> {
-        self.node_stack.len().checked_sub(1)
+    fn depth(&self) -> usize {
+        self.node_stack.len().checked_sub(1).unwrap()
     }
 
-    fn node(&self) -> Option<Node<'blob>> {
-        let node_ref = self.node_stack.current()?;
-        Some(self.token_cursor.get_node(node_ref))
+    fn node(&self) -> Node<'blob> {
+        let node_ref = self.node_stack.current().unwrap();
+        self.token_cursor.get_node(node_ref)
     }
 
-    type Parents<'cursor>
-        = StackBasedParents<'cursor, 'blob, C>
+    type Parents<'tc>
+        = StackBasedParents<'tc, 'blob, TC>
     where
-        Self: 'cursor;
+        Self: 'tc;
 
     fn parents(&self) -> Self::Parents<'_> {
         Self::Parents::new(self)
     }
 
     fn reset(&mut self) {
-        self.node_stack.clear();
-        self.state = ReadState::Init;
-        self.token_cursor.reset();
+        while self.node_stack.len() > 1 {
+            self.node_stack.pop().unwrap();
+        }
+        self.seek_node_start();
     }
 
-    fn seek_node_start(&mut self) -> Option<Node<'blob>> {
-        let node_ref = self.node_stack.current()?;
+    fn seek_node_start(&mut self) {
+        let node_ref = self.node_stack.current().unwrap();
         self.state = ReadState::Property;
         self.token_cursor.seek_item_start_of_node(node_ref);
-        let node = self.token_cursor.get_node(node_ref);
-        Some(node)
     }
 
-    fn seek_node_end(&mut self) -> Result<Option<Node<'blob>>, ReadTreeError> {
-        let Some(node_ref) = self.node_stack.current().cloned() else {
-            return Ok(None);
-        };
+    fn seek_node_end(&mut self) -> Result<(), ReadTreeError> {
         while let Some(item) = self.read_item_descend()? {
             match item {
                 Item::Property(_) => {}
                 Item::Node(_) => {
-                    let _node = self.seek_parent_next()?.unwrap();
+                    self.seek_parent_next()?.unwrap();
                 }
             }
         }
-        let node = self.token_cursor.get_node(&node_ref);
-        Ok(Some(node))
+        Ok(())
     }
 
-    fn seek_root_start(&mut self) -> Result<Node<'blob>, ReadTreeError> {
-        if self.node_stack.is_empty() {
-            self.reset();
-            let Some(item) = self.read_item_descend()? else {
-                return Err(ReadTreeError::no_root_node());
-            };
-            let node = item.into_node().unwrap();
-            return Ok(node);
-        }
-
+    fn seek_root_start(&mut self) {
         while self.node_stack.len() > 1 {
             self.node_stack.pop().unwrap();
         }
-        let node = self.seek_node_start().unwrap();
-        Ok(node)
+        self.seek_node_start();
     }
 
-    fn seek_parent_start(&mut self) -> Option<Node<'blob>> {
+    fn seek_parent_start(&mut self) -> Option<()> {
         if self.node_stack.len() <= 1 {
             return None;
         }
         self.node_stack.pop().unwrap();
-        let parent = self.seek_node_start().unwrap();
-        Some(parent)
+        self.seek_node_start();
+        Some(())
     }
 
-    fn seek_parent_next(&mut self) -> Result<Option<Node<'blob>>, ReadTreeError> {
+    fn seek_parent_next(&mut self) -> Result<Option<()>, ReadTreeError> {
         if self.node_stack.len() <= 1 {
             return Ok(None);
         }
-        let _node = self.seek_node_end()?.unwrap();
+        self.seek_node_end()?;
         self.node_stack.pop().unwrap();
-        let parent_ref = self.node_stack.current().unwrap();
-        let parent = self.token_cursor.get_node(parent_ref);
         self.state = ReadState::Child;
-        Ok(Some(parent))
+        Ok(Some(()))
     }
 
     fn read_item_descend(&mut self) -> Result<Option<Item<'blob>>, ReadTreeError> {
@@ -197,27 +185,12 @@ where
         }
         res
     }
-
-    type NodeDeserializer<'de>
-        = DefaultNodeDeserializer<'de, 'blob, Self>
-    where
-        Self: 'de;
-
-    fn node_deserializer(&mut self) -> Result<Self::NodeDeserializer<'_>, DeserializeError> {
-        if self.node_stack.is_empty() {
-            let _root = self.seek_root_start()?;
-        }
-        let node = self
-            .seek_node_start()
-            .ok_or_else(DeserializeError::missing_current_node)?;
-        Ok(DefaultNodeDeserializer::new(node, self))
-    }
 }
 
-impl<'blob, C, S> StackBasedTreeCursor<'blob, C, S>
+impl<'blob, TC, S> StackBasedTreeCursor<'blob, TC, S>
 where
-    C: TokenCursor<'blob>,
-    S: NodeStack<C::NodeRef>,
+    TC: TokenCursor<'blob>,
+    S: NodeStack<TC::NodeHandle>,
 {
     fn read_item_descend_inner(&mut self) -> Result<Option<Item<'blob>>, ReadTreeError> {
         let (in_prop, in_node) = match self.state {
@@ -240,10 +213,7 @@ where
                 Ok(Some(Item::Property(property)))
             }
             Some(Token::BeginNode(node)) => {
-                if in_prop {
-                    self.state = ReadState::Child;
-                }
-                let item = self.token_cursor.make_node_ref(&node);
+                let item = self.token_cursor.make_node_handle(&node);
                 if matches!(self.node_stack.push(item), Err(StackOverflowError)) {
                     return Err(ReadTreeError::too_deep());
                 }
@@ -265,22 +235,22 @@ where
     }
 }
 
-pub struct StackBasedParents<'cursor, 'blob, C>
+pub struct StackBasedParents<'tc, 'blob, TC>
 where
-    C: TokenCursor<'blob>,
+    TC: TokenCursor<'blob>,
 {
-    token_cursor: &'cursor C,
-    iter: iter::Rev<slice::Iter<'cursor, C::NodeRef>>,
+    token_cursor: &'tc TC,
+    iter: iter::Rev<slice::Iter<'tc, TC::NodeHandle>>,
 }
 
-impl<'cursor, 'blob, C> StackBasedParents<'cursor, 'blob, C>
+impl<'tc, 'blob, TC> StackBasedParents<'tc, 'blob, TC>
 where
-    C: TokenCursor<'blob>,
+    TC: TokenCursor<'blob>,
 {
-    pub fn new<S>(cursor: &'cursor StackBasedTreeCursor<'blob, C, S>) -> Self
+    pub fn new<S>(cursor: &'tc StackBasedTreeCursor<'blob, TC, S>) -> Self
     where
-        C: TokenCursor<'blob>,
-        S: NodeStack<C::NodeRef>,
+        TC: TokenCursor<'blob>,
+        S: NodeStack<TC::NodeHandle>,
     {
         let token_cursor = cursor.token_cursor();
         let iter = cursor.node_stack.as_slice().iter().rev();
@@ -288,9 +258,9 @@ where
     }
 }
 
-impl<'blob, C> Iterator for StackBasedParents<'_, 'blob, C>
+impl<'blob, TC> Iterator for StackBasedParents<'_, 'blob, TC>
 where
-    C: TokenCursor<'blob>,
+    TC: TokenCursor<'blob>,
 {
     type Item = Node<'blob>;
 

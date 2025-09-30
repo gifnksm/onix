@@ -26,4 +26,4 @@ pub trait TreeCursorAllocExt<'blob>: TreeCursor<'blob> {
     }
 }
 
-impl<'blob, T> TreeCursorAllocExt<'blob> for T where T: TreeCursor<'blob> + ?Sized {}
+impl<'blob, T> TreeCursorAllocExt<'blob> for T where T: TreeCursor<'blob> {}

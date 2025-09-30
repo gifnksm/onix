@@ -66,7 +66,9 @@ impl HeapLayout {
     pub fn new(dt: &Devicetree) -> Result<Self, GenericError> {
         let mut available_ranges = RangeSet::<128>::new();
 
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         let iter = cursor
             .read_descendant_nodes_by_glob("/memory")
             .deserialize_node::<Memory>();
@@ -81,7 +83,9 @@ impl HeapLayout {
             available_ranges.remove(rsv.address_range());
         }
 
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         let iter = cursor
             .read_descendant_nodes_by_glob("/reserved-memory/*")
             .deserialize_node::<ReservedMemoryRegion>();

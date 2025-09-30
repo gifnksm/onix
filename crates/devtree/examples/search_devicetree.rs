@@ -79,7 +79,9 @@ fn run(args: &Args) -> Result<(), GenericError> {
 fn search_blob_by_glob(args: &Args, path: &Path) -> Result<(), GenericError> {
     let blob = fs::read(path).whatever_context("failed to open devicetree blob")?;
     let dt = Devicetree::from_bytes(&blob).whatever_context("failed to read devicetree blob")?;
-    let mut tree_cursor = dt.tree_cursor();
+    let mut tree_cursor = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
 
     println!("Devicetree: {}", path.display());
 
@@ -120,15 +122,15 @@ fn search_blob_by_glob(args: &Args, path: &Path) -> Result<(), GenericError> {
     Ok(())
 }
 
-struct PrintNode<'a, 'blob, C> {
+struct PrintNode<'a, 'blob, TC> {
     args: &'a Args,
     node: &'a Node<'blob>,
-    tree_cursor: &'a C,
+    tree_cursor: &'a TC,
 }
 
-impl<'blob, C> fmt::Display for PrintNode<'_, 'blob, C>
+impl<'blob, TC> fmt::Display for PrintNode<'_, 'blob, TC>
 where
-    C: TreeCursor<'blob> + Clone,
+    TC: TreeCursor<'blob> + Clone,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.args.print {
@@ -139,8 +141,8 @@ where
     }
 }
 
-impl<'a, 'blob, C> PrintNode<'a, 'blob, C> {
-    fn new(args: &'a Args, node: &'a Node<'blob>, tree_cursor: &'a C) -> Self {
+impl<'a, 'blob, TC> PrintNode<'a, 'blob, TC> {
+    fn new(args: &'a Args, node: &'a Node<'blob>, tree_cursor: &'a TC) -> Self {
         Self {
             args,
             node,

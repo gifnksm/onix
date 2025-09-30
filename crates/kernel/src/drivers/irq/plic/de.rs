@@ -35,7 +35,9 @@ struct PlicNode<'blob> {
 
 pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<Plic>>, GenericError> {
     let mut plic_devices = Vec::new();
-    let mut cursor = dt.tree_cursor();
+    let mut cursor = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
     let iter = cursor
         .read_descendant_nodes_by_glob("/soc/plic")
         .deserialize_node::<PlicNode>();
@@ -110,20 +112,22 @@ struct CpuNode<'blob> {
 }
 
 fn deserialize_cpuid(dt: &Devicetree, intc_path: &ByteStr) -> Result<Option<Cpuid>, GenericError> {
-    let mut cursor = dt.tree_cursor();
+    let mut cursor = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
     let Some(_intc_node) = cursor
         .read_node_by_path(intc_path)
         .whatever_context("failed to read devicetree")?
     else {
         return Ok(None);
     };
-    let Some(cpu_node) = cursor.seek_parent_start() else {
+    let Some(parent) = cursor.read_parent() else {
         return Ok(None);
     };
-    if cpu_node.name() != "cpu" {
+    if parent.node().name() != "cpu" {
         return Ok(None);
     }
-    let CpuNode { reg } = cursor
+    let CpuNode { reg } = parent
         .deserialize_node()
         .whatever_context("failed to deserialize devicetree cpu node")?;
     let reg = reg

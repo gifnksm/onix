@@ -52,8 +52,11 @@ fn dump_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     println!("Devicetree: {}", path.display());
 
-    let mut cursor = dt.tree_cursor();
+    let mut cursor = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
     let deserialized = cursor
+        .read_node()
         .deserialize_node::<standard::Root>()
         .whatever_context("failed to deserialize root")?;
 

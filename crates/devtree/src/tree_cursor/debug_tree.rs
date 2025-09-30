@@ -6,30 +6,24 @@ use core::{
 use super::{TreeCursor, error::ReadTreeError};
 use crate::{blob::Item, types::ByteStr};
 
-enum CursorRef<'parent, 'cursor, TC>
-where
-    TC: ?Sized,
-{
-    Root(RefCell<&'cursor mut TC>),
-    Ref(&'parent RefCell<&'cursor mut TC>),
+enum CursorRef<'parent, 'tc, TC> {
+    Root(RefCell<&'tc mut TC>),
+    Ref(&'parent RefCell<&'tc mut TC>),
 }
 
-impl<'parent, 'cursor, TC> CursorRef<'parent, 'cursor, TC>
-where
-    TC: ?Sized,
-{
-    fn new_root<'this>(cursor: &'cursor mut TC) -> CursorRef<'this, 'cursor, TC> {
+impl<'parent, 'tc, TC> CursorRef<'parent, 'tc, TC> {
+    fn new_root<'this>(cursor: &'tc mut TC) -> CursorRef<'this, 'tc, TC> {
         CursorRef::Root(RefCell::new(cursor))
     }
 
-    fn cell(&self) -> &RefCell<&'cursor mut TC> {
+    fn cell(&self) -> &RefCell<&'tc mut TC> {
         match self {
             CursorRef::Root(cell) => cell,
             CursorRef::Ref(cell) => cell,
         }
     }
 
-    fn borrow_mut<'this, 'new>(&'this self) -> RefMut<'new, &'cursor mut TC>
+    fn borrow_mut<'this, 'new>(&'this self) -> RefMut<'new, &'tc mut TC>
     where
         'this: 'new,
         'parent: 'new,
@@ -40,28 +34,25 @@ where
         }
     }
 
-    fn make_ref<'this>(&'this self) -> CursorRef<'this, 'cursor, TC> {
+    fn make_ref<'this>(&'this self) -> CursorRef<'this, 'tc, TC> {
         CursorRef::Ref(self.cell())
     }
 }
 
-pub struct DebugTree<'parent, 'cursor, TC>
-where
-    TC: ?Sized,
-{
-    cursor: CursorRef<'parent, 'cursor, TC>,
+pub struct DebugTree<'parent, 'tc, TC> {
+    cursor: CursorRef<'parent, 'tc, TC>,
 }
 
-impl<'cursor, 'blob, TC> DebugTree<'_, 'cursor, TC>
+impl<'tc, 'blob, TC> DebugTree<'_, 'tc, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
-    pub fn new<'parent>(cursor: &'cursor mut TC) -> DebugTree<'parent, 'cursor, TC> {
+    pub fn new<'parent>(cursor: &'tc mut TC) -> DebugTree<'parent, 'tc, TC> {
         let cursor = CursorRef::new_root(cursor);
         DebugTree { cursor }
     }
 
-    fn new_child<'this>(&'this self) -> DebugTree<'this, 'cursor, TC> {
+    fn new_child<'this>(&'this self) -> DebugTree<'this, 'tc, TC> {
         let cursor = self.cursor.make_ref();
         DebugTree { cursor }
     }
@@ -90,7 +81,7 @@ where
 
 impl<'blob, TC> fmt::Debug for DebugTree<'_, '_, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut dm = f.debug_map();

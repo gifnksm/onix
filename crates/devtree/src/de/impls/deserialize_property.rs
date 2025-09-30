@@ -303,7 +303,7 @@ impl<'blob> DeserializeProperty<'blob> for Reg<'blob> {
             size_cells,
         } = de
             .clone_tree_cursor()?
-            .read_parent()?
+            .read_parent()
             .ok_or_else(|| DeserializeNodeError::missing_parent_node(de.node()))?
             .deserialize_node()?;
 
@@ -344,13 +344,13 @@ impl<'blob> DeserializeProperty<'blob> for Ranges<'blob> {
             parent_address_cells,
         } = de
             .clone_tree_cursor()?
-            .read_parent()?
+            .read_parent()
             .ok_or_else(|| DeserializeNodeError::missing_parent_node(de.node()))?
             .deserialize_node()?;
         let RangesNode {
             child_address_cells,
             child_size_cells,
-        } = de.clone_tree_cursor()?.deserialize_node()?;
+        } = de.clone_tree_cursor()?.read_node().deserialize_node()?;
 
         let value = <&[[u8; 4]]>::deserialize_property(de)?;
 

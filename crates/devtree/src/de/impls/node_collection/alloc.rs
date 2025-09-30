@@ -47,7 +47,7 @@ where
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
-        let key = de.clone_tree_cursor()?.deserialize_node()?;
+        let key = de.clone_tree_cursor()?.read_node().deserialize_node()?;
         let value = V::deserialize_node(de)?;
         self.insert(key, value);
         Ok(())

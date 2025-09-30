@@ -405,14 +405,23 @@ impl Field {
     ) -> Result<syn::Expr, darling::Error> {
         let field_value = match &self.spec {
             FieldSpec::Node(spec) => {
-                let trait_ = sgen.trait_node_deserializer();
                 let deserialize_with = spec
                     .deserialize_with
                     .clone()
                     .unwrap_or_else(|| sgen.expr_node_deserializer(&self.ty));
+                let trait_node_deserializer = sgen.trait_node_deserializer();
+                let trait_cursor = sgen.trait_tree_cursor();
+                let ty_tree_node_ref = sgen.ty_tree_node_ref();
+                let var_cursor = sgen::gen_var("cursor");
+                let var_node = sgen::gen_var("node");
                 let var_sub_de = sgen::gen_var("sub_de");
                 parse_quote! {
-                    #trait_::with_node_de(#var_de, |_node, mut #var_sub_de| (#deserialize_with)(&mut #var_sub_de))?
+                    {
+                        let mut #var_cursor = #trait_node_deserializer::clone_tree_cursor(#var_de)?;
+                        let mut #var_node = #trait_cursor::read_node(&mut #var_cursor);
+                        let mut #var_sub_de =  #ty_tree_node_ref::node_deserializer(&mut #var_node);
+                        (#deserialize_with)(&mut #var_sub_de)?
+                    }
                 }
             }
             FieldSpec::Property(spec) => {
@@ -436,20 +445,26 @@ impl Field {
                             .deserialize_with
                             .clone()
                             .unwrap_or_else(|| sgen.expr_property_deserializer(&self.ty));
-                        let deserializer = sgen.trait_node_deserializer();
                         let prop_name = spec.name.resolve(&self.ident)?;
                         let prop_name = prop_name.to_lit_str();
+                        let trait_node_deserializer = sgen.trait_node_deserializer();
+                        let trait_property_deserializer = sgen.trait_property_deserializer();
+                        let trait_cursor = sgen.trait_tree_cursor();
+                        let ty_tree_node_ref = sgen.ty_tree_node_ref();
                         let ty_item_deserializer = sgen.ty_item_deserializer();
                         let ty_property = sgen.ty_property();
-                        let trait_property_deserializer = sgen.trait_property_deserializer();
+                        let ty_option = sgen::ty_option();
+                        let var_cursor = sgen::gen_var("cursor");
                         let var_parent = sgen::gen_var("parent");
                         let var_parent_de = sgen::gen_var("parent_de");
                         let var_parent_sub_de = sgen::gen_var("parent_sub_de");
                         field_value = parse_quote! {
                             {
                                 if !#ty_prop_cell::has_value(&#var_name) {
-                                    #deserializer::with_parent_de(#var_de, |#var_parent, mut #var_parent_de| {
-                                        while let Some(mut #var_parent_de) = #deserializer::read_item(&mut #var_parent_de)? {
+                                    let mut #var_cursor = #trait_node_deserializer::clone_tree_cursor(#var_de)?;
+                                    if let #ty_option::Some(mut #var_parent) = #trait_cursor::read_parent(&mut #var_cursor) {
+                                        let mut #var_parent_de = #ty_tree_node_ref::node_deserializer(&mut #var_parent);
+                                        while let Some(mut #var_parent_de) = #trait_node_deserializer::read_item(&mut #var_parent_de)? {
                                             if let #ty_item_deserializer::Property(mut #var_parent_sub_de) = #var_parent_de {
                                                 if #ty_property::name(#trait_property_deserializer::property(&#var_parent_sub_de)) == #prop_name {
                                                     #ty_prop_cell::set(&mut #var_name, (#deserialize_with)(&mut #var_parent_sub_de)?)?;
@@ -459,8 +474,7 @@ impl Field {
                                                 break;
                                             }
                                         }
-                                        Ok(())
-                                    })?;
+                                    }
                                 }
                                 #field_value
                             }

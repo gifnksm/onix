@@ -15,6 +15,8 @@ fn parse_qemu_virt() {
     let dt = Devicetree::from_bytes(&dtb.0).unwrap();
     let _root = dt
         .tree_cursor()
+        .unwrap()
+        .read_node()
         .deserialize_node::<standard::Root>()
         .unwrap();
 }
@@ -25,6 +27,8 @@ fn parse_qemu_virt_opensbi() {
     let dt = Devicetree::from_bytes(&dtb.0).unwrap();
     let _root = dt
         .tree_cursor()
+        .unwrap()
+        .read_node()
         .deserialize_node::<standard::Root>()
         .unwrap();
 }

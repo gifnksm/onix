@@ -48,7 +48,9 @@ fn dump_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     println!("Devicetree: {}", path.display());
 
-    let mut root = dt.tree_cursor();
+    let mut root = dt
+        .tree_cursor()
+        .whatever_context("failed to create tree cursor")?;
     let debug_tree = root.debug_tree();
     if args.pretty {
         println!("{debug_tree:#?}");

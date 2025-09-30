@@ -1,6 +1,6 @@
 use devtree::{
     DeserializeNode, Devicetree,
-    tree_cursor::{NodeWithCursor, TreeCursor as _},
+    tree_cursor::{TreeCursor as _, TreeNodeRef},
     types::{ByteStr, ByteString},
 };
 use snafu::ResultExt as _;
@@ -28,9 +28,10 @@ static CHOSEN: Once<Chosen> = Once::new();
 pub fn init(dt: &Devicetree) -> Result<(), GenericError> {
     let chosen = dt
         .tree_cursor()
+        .whatever_context("failed to create tree cursor")?
         .read_node_by_path("/chosen")
         .whatever_context("failed to read chosen node")?
-        .map(NodeWithCursor::deserialize_node::<ChosenNode<'_>>)
+        .map(TreeNodeRef::deserialize_node::<ChosenNode<'_>>)
         .transpose()
         .whatever_context("failed to deserialize chosen node")?
         .unwrap_or_default();

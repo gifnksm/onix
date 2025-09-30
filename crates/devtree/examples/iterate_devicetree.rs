@@ -76,7 +76,9 @@ fn iterate_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     if args.items {
         println!("  Items:");
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         let mut iter = cursor.read_items();
         while let Some(item) = iter.next() {
             let item = item.whatever_context("failed to read devicetree blob")?;
@@ -94,7 +96,9 @@ fn iterate_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     if args.properties {
         println!("  Properties:");
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         for property in cursor.read_properties() {
             let property = property.whatever_context("failed to read devicetree blob")?;
             println!("    {}", property.name());
@@ -103,7 +107,9 @@ fn iterate_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     if args.children {
         println!("  Children:");
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         let mut iter = cursor.read_children();
         while let Some(_) = iter.next() {
             let cursor = iter.tree_cursor();
@@ -113,7 +119,9 @@ fn iterate_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     if args.descendant_items {
         println!("  Descendant Items:");
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         let mut iter = cursor.read_descendant_items();
         while let Some(item) = iter.next() {
             let item = item.whatever_context("failed to read devicetree blob")?;
@@ -131,7 +139,9 @@ fn iterate_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     if args.descendant_properties {
         println!("  Descendant Properties:");
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         for property in cursor.read_descendant_properties() {
             let property = property.whatever_context("failed to read devicetree blob")?;
             println!("    {}", property.name());
@@ -140,7 +150,9 @@ fn iterate_blob(args: &Args, path: &Path) -> Result<(), GenericError> {
 
     if args.descendant_nodes {
         println!("  Descendant Nodes:");
-        let mut cursor = dt.tree_cursor();
+        let mut cursor = dt
+            .tree_cursor()
+            .whatever_context("failed to create tree cursor")?;
         let mut iter = cursor.read_descendant_nodes();
         while let Some(_) = iter.next() {
             let cursor = iter.tree_cursor();

@@ -7,7 +7,7 @@ use crate::{
 
 pub struct DefaultNodeDeserializer<'de, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     node: Node<'blob>,
     cursor: &'de mut TC,
@@ -15,11 +15,11 @@ where
 
 impl<'de, 'blob, TC> DefaultNodeDeserializer<'de, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
-    pub fn new<'cursor>(node: Node<'blob>, cursor: &'cursor mut TC) -> Self
+    pub fn new<'tc>(node: Node<'blob>, cursor: &'tc mut TC) -> Self
     where
-        'cursor: 'de,
+        'tc: 'de,
     {
         Self { node, cursor }
     }
@@ -53,17 +53,13 @@ where
         Option<ItemDeserializer<Self::PropertyDeserializer<'_>, Self::NodeDeserializer<'_>>>,
         DeserializeError,
     > {
-        let node = self.node().clone();
-        if self.cursor.depth().is_none() {
-            let _root = self.cursor.seek_root_start()?;
-        }
         let Some(item) = self.cursor.read_item_descend()? else {
             return Ok(None);
         };
         let sub_de = match item {
-            Item::Property(property) => ItemDeserializer::Property(
-                DefaultPropertyDeserializer::new(node, property, self.cursor),
-            ),
+            Item::Property(property) => {
+                ItemDeserializer::Property(DefaultPropertyDeserializer::new(property, self.cursor))
+            }
             Item::Node(child) => {
                 ItemDeserializer::Node(DefaultNodeDeserializer::new(child, self.cursor))
             }
@@ -74,7 +70,7 @@ where
 
 impl<'blob, TC> Drop for DefaultNodeDeserializer<'_, 'blob, TC>
 where
-    TC: TreeCursor<'blob> + ?Sized,
+    TC: TreeCursor<'blob>,
 {
     fn drop(&mut self) {
         let _ = self.cursor.seek_parent_next();

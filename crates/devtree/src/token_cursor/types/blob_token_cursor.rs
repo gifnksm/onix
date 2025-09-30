@@ -16,12 +16,12 @@ use crate::{
 // Like `Node<'blob>`, but smaller in size.
 // Intended to reduce the stack size required to hold a `TreeCursor`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlobNodeRef {
+pub struct BlobNodeHandle {
     name_start: u32,
     name_len: u32,
 }
 
-impl Default for BlobNodeRef {
+impl Default for BlobNodeHandle {
     fn default() -> Self {
         Self {
             name_start: u32::MAX,
@@ -30,7 +30,7 @@ impl Default for BlobNodeRef {
     }
 }
 
-impl BlobNodeRef {
+impl BlobNodeHandle {
     pub(crate) fn from_node(node: &Node<'_>, token_cursor: &BlobTokenCursor<'_>) -> Self {
         let range =
             polyfill::slice_subslice_range(token_cursor.struct_block, node.full_name()).unwrap();
@@ -75,13 +75,13 @@ impl<'blob> BlobTokenCursor<'blob> {
 }
 
 impl<'blob> TokenCursor<'blob> for BlobTokenCursor<'blob> {
-    type NodeRef = BlobNodeRef;
+    type NodeHandle = BlobNodeHandle;
 
-    fn make_node_ref(&self, node: &Node<'blob>) -> Self::NodeRef {
-        BlobNodeRef::from_node(node, self)
+    fn make_node_handle(&self, node: &Node<'blob>) -> Self::NodeHandle {
+        BlobNodeHandle::from_node(node, self)
     }
 
-    fn get_node(&self, node_ref: &Self::NodeRef) -> Node<'blob> {
+    fn get_node(&self, node_ref: &Self::NodeHandle) -> Node<'blob> {
         node_ref.node(self)
     }
 
@@ -95,7 +95,7 @@ impl<'blob> TokenCursor<'blob> for BlobTokenCursor<'blob> {
         self.root_emitted = false;
     }
 
-    fn seek_item_start_of_node(&mut self, node_ref: &Self::NodeRef) {
+    fn seek_item_start_of_node(&mut self, node_ref: &Self::NodeHandle) {
         let struct_block = DataView::from(self.struct_block);
         let name_start = usize::cast_from(node_ref.name_start);
         let name_len = usize::cast_from(node_ref.name_len);
