@@ -9,6 +9,8 @@ pub use devtree_derive::DeserializeNode;
 
 pub use self::blob::Devicetree;
 
+#[doc(hidden)]
+pub mod __private;
 pub mod blob;
 pub mod de;
 pub mod node_stack;

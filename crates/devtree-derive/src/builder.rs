@@ -80,8 +80,7 @@ impl Builder {
         var_de: &syn::Ident,
         body: &mut Vec<syn::Stmt>,
     ) -> Result<(), darling::Error> {
-        let ty_de = self.sgen.trait_node_deserializer();
-        let expr_ok = sgen::expr_ok(&parse_quote! {()});
+        let private = self.sgen.private();
         let var_sub_de = sgen::gen_var("sub_de");
         let mut prop_patterns = vec![];
         let mut prop_handlers = vec![];
@@ -122,26 +121,22 @@ impl Builder {
             }
         }
 
-        let ty_property_deserializer = self.sgen.trait_property_deserializer();
-        let ty_node_deserializer = self.sgen.trait_node_deserializer();
-        let ty_property = self.sgen.ty_property();
-        let ty_node = self.sgen.ty_node();
         let stmt = parse_quote! {
-            #ty_de::with_items(
+            #private::node_de_with_items(
                 #var_de,
                 |mut #var_sub_de| {
-                    match &**#ty_property::name(#ty_property_deserializer::property(&#var_sub_de)) {
+                    match #private::prop_de_name(&#var_sub_de) {
                         #( #prop_patterns => { #prop_handlers }, )*
                         _ => { #extra_properties_handler }
                     }
-                    #expr_ok
+                    #private::Result::Ok(())
                 },
                 |mut #var_sub_de| {
-                    match &**#ty_node::name(#ty_node_deserializer::node(&#var_sub_de)) {
+                    match #private::node_de_name(&#var_sub_de) {
                         #( #child_patterns => { #child_handlers }, )*
                         _ => { #extra_children_handler }
                     }
-                    #expr_ok
+                    #private::Result::Ok(())
                 },
             )?;
         };
@@ -154,6 +149,7 @@ impl Builder {
         var_de: &syn::Ident,
         body: &mut Vec<syn::Stmt>,
     ) -> Result<(), darling::Error> {
+        let private = self.sgen.private();
         let mut idents = vec![];
         let mut values = vec![];
         for field in &self.fields {
@@ -162,12 +158,11 @@ impl Builder {
             values.push(value);
         }
         let value = parse_quote! {
-            Self {
+            #private::Result::Ok(Self {
                 #( #idents: (#values), )*
-            }
+            })
         };
-        let value = sgen::expr_ok(&value);
-        body.push(syn::Stmt::Expr(parse_quote! { #value }, None));
+        body.push(syn::Stmt::Expr(value, None));
         Ok(())
     }
 
@@ -178,12 +173,7 @@ impl Builder {
         var_de: &syn::Ident,
         body: &[syn::Stmt],
     ) -> TokenStream {
-        let trait_de_node = self.sgen.trait_deserialize_node_with_lifetime(lt_blob);
-        let trait_de = self.sgen.trait_node_deserializer_with_lt(lt_de, lt_blob);
-        let trait_sized = sgen::trait_sized();
-        let ty_error = self.sgen.ty_error();
-        let ty_result =
-            sgen::ty_result_with_param(&parse_quote! { Self }, &parse_quote! { #ty_error });
+        let private = self.sgen.private();
         let gp_d = sgen::gen_generic_param_d();
         let ident = &self.ident;
 
@@ -202,10 +192,10 @@ impl Builder {
 
         quote! {
             #[automatically_derived]
-            impl #impl_generics #trait_de_node for #ident #ty_generics #where_clause {
-                fn deserialize_node<#lt_de, #gp_d>(#var_de: &mut #gp_d) -> #ty_result
+            impl #impl_generics #private::DeserializeNode<#lt_blob> for #ident #ty_generics #where_clause {
+                fn deserialize_node<#lt_de, #gp_d>(#var_de: &mut #gp_d) -> #private::Result<Self, #private::DeserializeError>
                     where
-                        #gp_d: #trait_de + ?#trait_sized,
+                        #gp_d: #private::NodeDeserializer<#lt_de, #lt_blob> + ?#private::Sized,
                 {
                     #( #body )*
                 }
@@ -248,21 +238,21 @@ impl Field {
         sgen: &SymbolGenerator,
         de: &syn::Ident,
     ) -> Result<Option<syn::Stmt>, darling::Error> {
+        let private = sgen.private();
+        let ty = &self.ty;
         let value: syn::Expr = match &self.spec {
             FieldSpec::Node(_) => return Ok(None),
             FieldSpec::Property(spec) => {
-                let ty_prop_cell = sgen.ty_prop_cell_with_ty(&self.ty);
                 let prop_name = spec.name.resolve(&self.ident)?.to_lit_str();
-                parse_quote! {  #ty_prop_cell::new(#de, #prop_name)? }
+                parse_quote! {  #private::PropertyCell::<#ty>::new(#de, #prop_name)? }
             }
             FieldSpec::Child(spec) => {
-                let ty_node_cell = sgen.ty_node_cell_with_ty(&self.ty);
                 let child_name = spec.name.resolve(&self.ident)?.to_lit_str();
-                parse_quote! {  #ty_node_cell::new(#de, #child_name)? }
+                parse_quote! {  #private::NodeCell::<#ty>::new(#de, #child_name)? }
             }
             FieldSpec::ExtraProperties(_)
             | FieldSpec::RepeatedChildren(_)
-            | FieldSpec::ExtraChildren(_) => sgen::expr_default(&self.ty),
+            | FieldSpec::ExtraChildren(_) => parse_quote! { <#ty as #private::Default>::default() },
         };
         let var_name = &self.var_name;
         Ok(Some(parse_quote! { let mut #var_name = #value; }))
@@ -273,16 +263,16 @@ impl Field {
         sgen: &SymbolGenerator,
         var_sub_de: &syn::Ident,
     ) -> Result<Option<(ResolvedName, syn::Expr)>, darling::Error> {
+        let private = sgen.private();
+        let ty = &self.ty;
         match &self.spec {
             FieldSpec::Property(spec) => {
-                let deserialize_with = spec
-                    .deserialize_with
-                    .clone()
-                    .unwrap_or_else(|| sgen.expr_property_deserializer(&self.ty));
-                let ty_prop_cell = sgen.ty_prop_cell_with_ty(&self.ty);
+                let deserialize_with = spec.deserialize_with.clone().unwrap_or_else(|| {
+                    parse_quote! { <#ty as #private::DeserializeProperty>::deserialize_property }
+                });
                 let var_name = &self.var_name;
                 let expr = parse_quote! {
-                    #ty_prop_cell::set(&mut #var_name, (#deserialize_with)(&mut #var_sub_de)?)?
+                    #private::PropertyCell::set(&mut #var_name, (#deserialize_with)(&mut #var_sub_de)?)?
                 };
                 let prop_name = spec.name.resolve(&self.ident)?;
                 Ok(Some((prop_name, expr)))
@@ -300,12 +290,13 @@ impl Field {
         sgen: &SymbolGenerator,
         var_sub_de: &syn::Ident,
     ) -> Option<syn::Expr> {
+        let private = sgen.private();
+        let ty = &self.ty;
         match &self.spec {
             FieldSpec::ExtraProperties(spec) => {
-                let insert_with = spec
-                    .insert_with
-                    .clone()
-                    .unwrap_or_else(|| sgen.expr_property_collection_inserter(&self.ty));
+                let insert_with = spec.insert_with.clone().unwrap_or_else(|| {
+                    parse_quote! { <#ty as #private::PropertyCollection>::insert_property }
+                });
                 let var_name = &self.var_name;
                 let expr = parse_quote! {
                     (#insert_with)(&mut #var_name, &mut #var_sub_de)?
@@ -325,16 +316,16 @@ impl Field {
         sgen: &SymbolGenerator,
         var_sub_de: &syn::Ident,
     ) -> Result<Option<(ResolvedName, syn::Expr)>, darling::Error> {
+        let private = sgen.private();
+        let ty = &self.ty;
         match &self.spec {
             FieldSpec::Child(spec) => {
-                let deserialize_with = spec
-                    .deserialize_with
-                    .clone()
-                    .unwrap_or_else(|| sgen.expr_node_deserializer(&self.ty));
-                let ty_node_cell = sgen.ty_node_cell_with_ty(&self.ty);
+                let deserialize_with = spec.deserialize_with.clone().unwrap_or_else(|| {
+                    parse_quote! { <#ty as #private::DeserializeNode>::deserialize_node }
+                });
                 let var_name = &self.var_name;
                 let expr = parse_quote! {
-                    #ty_node_cell::set(&mut #var_name, (#deserialize_with)(&mut #var_sub_de)?)?
+                    #private::NodeCell::set(&mut #var_name, (#deserialize_with)(&mut #var_sub_de)?)?
                 };
                 let node_name = spec.name.resolve(&self.ident)?;
                 Ok(Some((node_name, expr)))
@@ -352,12 +343,13 @@ impl Field {
         sgen: &SymbolGenerator,
         var_sub_de: &syn::Ident,
     ) -> Result<Option<(ResolvedName, syn::Expr)>, darling::Error> {
+        let private = sgen.private();
+        let ty = &self.ty;
         match &self.spec {
             FieldSpec::RepeatedChildren(spec) => {
-                let insert_with = spec
-                    .insert_with
-                    .clone()
-                    .unwrap_or_else(|| sgen.expr_node_collection_inserter(&self.ty));
+                let insert_with = spec.insert_with.clone().unwrap_or_else(|| {
+                    parse_quote! { <#ty as #private::NodeCollection>::insert_node }
+                });
                 let var_name = &self.var_name;
                 let expr = parse_quote! {
                     (#insert_with)(&mut #var_name, &mut #var_sub_de)?
@@ -378,12 +370,13 @@ impl Field {
         sgen: &SymbolGenerator,
         var_sub_de: &syn::Ident,
     ) -> Option<syn::Expr> {
+        let private = sgen.private();
+        let ty = &self.ty;
         match &self.spec {
             FieldSpec::ExtraChildren(spec) => {
-                let insert_with = spec
-                    .insert_with
-                    .clone()
-                    .unwrap_or_else(|| sgen.expr_node_collection_inserter(&self.ty));
+                let insert_with = spec.insert_with.clone().unwrap_or_else(|| {
+                    parse_quote! { <#ty as #private::NodeCollection>::insert_node }
+                });
                 let var_name = &self.var_name;
                 let expr = parse_quote! {
                     (#insert_with)(&mut #var_name, &mut #var_sub_de)?
@@ -403,71 +396,62 @@ impl Field {
         sgen: &SymbolGenerator,
         var_de: &syn::Ident,
     ) -> Result<syn::Expr, darling::Error> {
+        let private = sgen.private();
+        let ty = &self.ty;
         let field_value = match &self.spec {
             FieldSpec::Node(spec) => {
-                let deserialize_with = spec
-                    .deserialize_with
-                    .clone()
-                    .unwrap_or_else(|| sgen.expr_node_deserializer(&self.ty));
-                let trait_node_deserializer = sgen.trait_node_deserializer();
-                let trait_cursor = sgen.trait_tree_cursor();
-                let ty_tree_node_ref = sgen.ty_tree_node_ref();
+                let deserialize_with = spec.deserialize_with.clone().unwrap_or_else(|| {
+                    parse_quote! { <#ty as #private::DeserializeNode>::deserialize_node }
+                });
                 let var_cursor = sgen::gen_var("cursor");
                 let var_node = sgen::gen_var("node");
                 let var_sub_de = sgen::gen_var("sub_de");
                 parse_quote! {
                     {
-                        let mut #var_cursor = #trait_node_deserializer::clone_tree_cursor(#var_de)?;
-                        let mut #var_node = #trait_cursor::read_node(&mut #var_cursor);
-                        let mut #var_sub_de =  #ty_tree_node_ref::node_deserializer(&mut #var_node);
+                        let mut #var_cursor = #private::NodeDeserializer::clone_tree_cursor(#var_de)?;
+                        let mut #var_node = #private::TreeCursor::read_node(&mut #var_cursor);
+                        let mut #var_sub_de =  #private::TreeNodeRef::node_deserializer(&mut #var_node);
                         (#deserialize_with)(&mut #var_sub_de)?
                     }
                 }
             }
             FieldSpec::Property(spec) => {
-                let ty_prop_cell = sgen.ty_prop_cell_with_ty(&self.ty);
                 let var_name = &self.var_name;
                 let mut field_value = match &spec.default {
                     PropertyDefault::None => {
-                        parse_quote! { #ty_prop_cell::finish(#var_name)? }
+                        parse_quote! { #private::PropertyCell::finish(#var_name)? }
                     }
                     PropertyDefault::DefaultTrait => {
-                        parse_quote! { #ty_prop_cell::finish_or_default(#var_name) }
+                        parse_quote! { #private::PropertyCell::finish_or_default(#var_name) }
                     }
                     PropertyDefault::Value(expr) => {
-                        parse_quote! { #ty_prop_cell::finish_or_else(#var_name, || { #expr }) }
+                        parse_quote! { #private::PropertyCell::finish_or_else(#var_name, || { #expr }) }
                     }
                 };
                 match &spec.fallback {
                     Fallback::None => {}
                     Fallback::Parent => {
-                        let deserialize_with = spec
-                            .deserialize_with
-                            .clone()
-                            .unwrap_or_else(|| sgen.expr_property_deserializer(&self.ty));
+                        let deserialize_with = spec.deserialize_with.clone().unwrap_or_else(|| {
+                            parse_quote! {
+                                <#ty as #private::DeserializeProperty>::deserialize_property
+                            }
+                        });
                         let prop_name = spec.name.resolve(&self.ident)?;
-                        let prop_name = prop_name.to_lit_str();
-                        let trait_node_deserializer = sgen.trait_node_deserializer();
-                        let trait_property_deserializer = sgen.trait_property_deserializer();
-                        let trait_cursor = sgen.trait_tree_cursor();
-                        let ty_tree_node_ref = sgen.ty_tree_node_ref();
-                        let ty_item_deserializer = sgen.ty_item_deserializer();
-                        let ty_property = sgen.ty_property();
-                        let ty_option = sgen::ty_option();
+                        let prop_name = prop_name.to_lit_byte_str();
                         let var_cursor = sgen::gen_var("cursor");
                         let var_parent = sgen::gen_var("parent");
                         let var_parent_de = sgen::gen_var("parent_de");
                         let var_parent_sub_de = sgen::gen_var("parent_sub_de");
                         field_value = parse_quote! {
                             {
-                                if !#ty_prop_cell::has_value(&#var_name) {
-                                    let mut #var_cursor = #trait_node_deserializer::clone_tree_cursor(#var_de)?;
-                                    if let #ty_option::Some(mut #var_parent) = #trait_cursor::read_parent(&mut #var_cursor) {
-                                        let mut #var_parent_de = #ty_tree_node_ref::node_deserializer(&mut #var_parent);
-                                        while let Some(mut #var_parent_de) = #trait_node_deserializer::read_item(&mut #var_parent_de)? {
-                                            if let #ty_item_deserializer::Property(mut #var_parent_sub_de) = #var_parent_de {
-                                                if #ty_property::name(#trait_property_deserializer::property(&#var_parent_sub_de)) == #prop_name {
-                                                    #ty_prop_cell::set(&mut #var_name, (#deserialize_with)(&mut #var_parent_sub_de)?)?;
+                                if !#private::PropertyCell::has_value(&#var_name) {
+                                    let mut #var_cursor = #private::NodeDeserializer::clone_tree_cursor(#var_de)?;
+                                    if let #private::Option::Some(mut #var_parent) = #private::TreeCursor::read_parent(&mut #var_cursor) {
+                                        let mut #var_parent_de = #private::TreeNodeRef::node_deserializer(&mut #var_parent);
+                                        while let Some(mut #var_parent_de) = #private::NodeDeserializer::read_item(&mut #var_parent_de)? {
+                                            if let #private::ItemDeserializer::Property(mut #var_parent_sub_de) = #var_parent_de {
+                                                if #private::prop_de_name(&#var_parent_sub_de) == #prop_name {
+                                                    #private::PropertyCell::set(&mut #var_name, (#deserialize_with)(&mut #var_parent_sub_de)?)?;
                                                     break;
                                                 }
                                             } else {
@@ -488,14 +472,13 @@ impl Field {
                 parse_quote! { #var_name }
             }
             FieldSpec::Child(spec) => {
-                let ty_node_cell = sgen.ty_node_cell_with_ty(&self.ty);
                 let var_name = &self.var_name;
                 match &spec.default {
                     false => {
-                        parse_quote! { #ty_node_cell::finish(#var_name)? }
+                        parse_quote! { #private::NodeCell::finish(#var_name)? }
                     }
                     true => {
-                        parse_quote! { #ty_node_cell::finish_or_default(#var_name) }
+                        parse_quote! { #private::NodeCell::finish_or_default(#var_name) }
                     }
                 }
             }
