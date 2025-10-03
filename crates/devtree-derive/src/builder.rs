@@ -82,44 +82,19 @@ impl Builder {
     ) -> Result<(), darling::Error> {
         let private = self.sgen.private();
         let var_sub_de = sgen::gen_var("sub_de");
-        let mut prop_patterns = vec![];
-        let mut prop_handlers = vec![];
-        let mut extra_properties_handler = None;
-        let mut child_patterns = vec![];
-        let mut child_handlers = vec![];
-        let mut extra_children_handler = None;
+        let mut field_match_arms = FieldMatchArms::default();
         for field in &self.fields {
-            if let Some((name, handler)) = field.prop_handler(&self.sgen, &var_sub_de)? {
-                prop_patterns.push(name.to_lit_byte_str());
-                prop_handlers.push(handler);
-            }
-            if let Some(handler) = field.extra_properties_handler(&self.sgen, &var_sub_de) {
-                if extra_properties_handler.is_some() {
-                    return Err(darling::Error::custom(
-                        "only one field can be marked as extra_properties",
-                    ));
-                }
-                extra_properties_handler = Some(handler);
-            }
-            if let Some((name, handler)) = field.child_handler(&self.sgen, &var_sub_de)? {
-                child_patterns.push(name.to_lit_byte_str());
-                child_handlers.push(handler);
-            }
-            if let Some((name, handler)) =
-                field.repeaded_children_handler(&self.sgen, &var_sub_de)?
-            {
-                child_patterns.push(name.to_lit_byte_str());
-                child_handlers.push(handler);
-            }
-            if let Some(handler) = field.extra_children_handler(&self.sgen, &var_sub_de) {
-                if extra_children_handler.is_some() {
-                    return Err(darling::Error::custom(
-                        "only one field can be marked as extra_children",
-                    ));
-                }
-                extra_children_handler = Some(handler);
-            }
+            field.push_match_arm(&self.sgen, &var_sub_de, &mut field_match_arms)?;
         }
+
+        let FieldMatchArms {
+            prop_patterns,
+            prop_handlers,
+            extra_prop_handler,
+            child_patterns,
+            child_handlers,
+            extra_child_handler,
+        } = field_match_arms;
 
         let stmt = parse_quote! {
             #private::node_de_with_items(
@@ -127,14 +102,14 @@ impl Builder {
                 |mut #var_sub_de| {
                     match #private::prop_de_name(&#var_sub_de) {
                         #( #prop_patterns => { #prop_handlers }, )*
-                        _ => { #extra_properties_handler }
+                        _ => { #extra_prop_handler }
                     }
                     #private::Result::Ok(())
                 },
                 |mut #var_sub_de| {
                     match #private::node_de_name(&#var_sub_de) {
                         #( #child_patterns => { #child_handlers }, )*
-                        _ => { #extra_children_handler }
+                        _ => { #extra_child_handler }
                     }
                     #private::Result::Ok(())
                 },
@@ -204,6 +179,50 @@ impl Builder {
     }
 }
 
+#[derive(Debug, Default)]
+struct FieldMatchArms {
+    prop_patterns: Vec<syn::Pat>,
+    prop_handlers: Vec<syn::Expr>,
+    extra_prop_handler: Option<syn::Expr>,
+    child_patterns: Vec<syn::Pat>,
+    child_handlers: Vec<syn::Expr>,
+    extra_child_handler: Option<syn::Expr>,
+}
+
+impl FieldMatchArms {
+    fn push_prop_handler(&mut self, name: &ResolvedName, handler: syn::Expr) {
+        let name = name.to_lit_byte_str();
+        self.prop_patterns.push(parse_quote! { #name });
+        self.prop_handlers.push(handler);
+    }
+
+    fn set_extra_prop_handler(&mut self, handler: syn::Expr) -> Result<(), darling::Error> {
+        if self.extra_prop_handler.is_some() {
+            return Err(darling::Error::custom(
+                "only one field can be marked as extra_properties",
+            ));
+        }
+        self.extra_prop_handler = Some(handler);
+        Ok(())
+    }
+
+    fn push_child_handler(&mut self, name: &ResolvedName, handler: syn::Expr) {
+        let name = name.to_lit_byte_str();
+        self.child_patterns.push(parse_quote! { #name });
+        self.child_handlers.push(handler);
+    }
+
+    fn set_extra_child_handler(&mut self, handler: syn::Expr) -> Result<(), darling::Error> {
+        if self.extra_child_handler.is_some() {
+            return Err(darling::Error::custom(
+                "only one field can be marked as extra_children",
+            ));
+        }
+        self.extra_child_handler = Some(handler);
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FieldIdent {
     Named(syn::Ident),
@@ -258,137 +277,67 @@ impl Field {
         Ok(Some(parse_quote! { let mut #var_name = #value; }))
     }
 
-    fn prop_handler(
+    fn push_match_arm(
         &self,
         sgen: &SymbolGenerator,
         var_sub_de: &syn::Ident,
-    ) -> Result<Option<(ResolvedName, syn::Expr)>, darling::Error> {
+        arms: &mut FieldMatchArms,
+    ) -> Result<(), darling::Error> {
         let private = sgen.private();
+        let var_name = &self.var_name;
         let ty = &self.ty;
         match &self.spec {
+            FieldSpec::Node(_) => {}
             FieldSpec::Property(spec) => {
                 let deserialize_with = spec.deserialize_with.clone().unwrap_or_else(|| {
                     parse_quote! { <#ty as #private::DeserializeProperty>::deserialize_property }
                 });
-                let var_name = &self.var_name;
-                let expr = parse_quote! {
+                let handler = parse_quote! {
                     #private::PropertyCell::set(&mut #var_name, (#deserialize_with)(&mut #var_sub_de)?)?
                 };
                 let prop_name = spec.name.resolve(&self.ident)?;
-                Ok(Some((prop_name, expr)))
+                arms.push_prop_handler(&prop_name, handler);
             }
-            FieldSpec::ExtraProperties(_)
-            | FieldSpec::Node(_)
-            | FieldSpec::Child(_)
-            | FieldSpec::RepeatedChildren(_)
-            | FieldSpec::ExtraChildren(_) => Ok(None),
-        }
-    }
-
-    fn extra_properties_handler(
-        &self,
-        sgen: &SymbolGenerator,
-        var_sub_de: &syn::Ident,
-    ) -> Option<syn::Expr> {
-        let private = sgen.private();
-        let ty = &self.ty;
-        match &self.spec {
             FieldSpec::ExtraProperties(spec) => {
                 let insert_with = spec.insert_with.clone().unwrap_or_else(|| {
                     parse_quote! { <#ty as #private::PropertyCollection>::insert_property }
                 });
-                let var_name = &self.var_name;
-                let expr = parse_quote! {
+                let handler = parse_quote! {
                     (#insert_with)(&mut #var_name, &mut #var_sub_de)?
                 };
-                Some(expr)
+                arms.set_extra_prop_handler(handler)?;
             }
-            FieldSpec::Property(_)
-            | FieldSpec::Node(_)
-            | FieldSpec::Child(_)
-            | FieldSpec::RepeatedChildren(_)
-            | FieldSpec::ExtraChildren(_) => None,
-        }
-    }
-
-    fn child_handler(
-        &self,
-        sgen: &SymbolGenerator,
-        var_sub_de: &syn::Ident,
-    ) -> Result<Option<(ResolvedName, syn::Expr)>, darling::Error> {
-        let private = sgen.private();
-        let ty = &self.ty;
-        match &self.spec {
             FieldSpec::Child(spec) => {
                 let deserialize_with = spec.deserialize_with.clone().unwrap_or_else(|| {
                     parse_quote! { <#ty as #private::DeserializeNode>::deserialize_node }
                 });
-                let var_name = &self.var_name;
-                let expr = parse_quote! {
+                let handler = parse_quote! {
                     #private::NodeCell::set(&mut #var_name, (#deserialize_with)(&mut #var_sub_de)?)?
                 };
                 let node_name = spec.name.resolve(&self.ident)?;
-                Ok(Some((node_name, expr)))
+                arms.push_child_handler(&node_name, handler);
             }
-            FieldSpec::Node(_)
-            | FieldSpec::Property(_)
-            | FieldSpec::ExtraProperties(_)
-            | FieldSpec::RepeatedChildren(_)
-            | FieldSpec::ExtraChildren(_) => Ok(None),
-        }
-    }
-
-    fn repeaded_children_handler(
-        &self,
-        sgen: &SymbolGenerator,
-        var_sub_de: &syn::Ident,
-    ) -> Result<Option<(ResolvedName, syn::Expr)>, darling::Error> {
-        let private = sgen.private();
-        let ty = &self.ty;
-        match &self.spec {
             FieldSpec::RepeatedChildren(spec) => {
                 let insert_with = spec.insert_with.clone().unwrap_or_else(|| {
                     parse_quote! { <#ty as #private::NodeCollection>::insert_node }
                 });
-                let var_name = &self.var_name;
-                let expr = parse_quote! {
+                let handler = parse_quote! {
                     (#insert_with)(&mut #var_name, &mut #var_sub_de)?
                 };
                 let node_name = spec.name.resolve(&self.ident)?;
-                Ok(Some((node_name, expr)))
+                arms.push_child_handler(&node_name, handler);
             }
-            FieldSpec::Node(_)
-            | FieldSpec::Property(_)
-            | FieldSpec::ExtraProperties(_)
-            | FieldSpec::Child(_)
-            | FieldSpec::ExtraChildren(_) => Ok(None),
-        }
-    }
-
-    fn extra_children_handler(
-        &self,
-        sgen: &SymbolGenerator,
-        var_sub_de: &syn::Ident,
-    ) -> Option<syn::Expr> {
-        let private = sgen.private();
-        let ty = &self.ty;
-        match &self.spec {
             FieldSpec::ExtraChildren(spec) => {
                 let insert_with = spec.insert_with.clone().unwrap_or_else(|| {
                     parse_quote! { <#ty as #private::NodeCollection>::insert_node }
                 });
-                let var_name = &self.var_name;
-                let expr = parse_quote! {
+                let handler = parse_quote! {
                     (#insert_with)(&mut #var_name, &mut #var_sub_de)?
                 };
-                Some(expr)
+                arms.set_extra_child_handler(handler)?;
             }
-            FieldSpec::Property(_)
-            | FieldSpec::ExtraProperties(_)
-            | FieldSpec::Node(_)
-            | FieldSpec::Child(_)
-            | FieldSpec::RepeatedChildren(_) => None,
         }
+        Ok(())
     }
 
     fn field_value(
