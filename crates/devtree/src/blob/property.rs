@@ -2,7 +2,7 @@ use core::fmt;
 
 use crate::{polyfill, types::ByteStr};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Property<'blob> {
     name_bytes: &'blob [u8],
     value: &'blob [u8],

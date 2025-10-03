@@ -1,7 +1,7 @@
 use super::error::ReadTokenError;
 use crate::blob::{Node, Property};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Token<'blob> {
     BeginNode(Node<'blob>),
     EndNode,

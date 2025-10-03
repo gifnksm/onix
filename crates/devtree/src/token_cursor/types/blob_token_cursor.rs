@@ -107,7 +107,7 @@ impl<'blob> TokenCursor<'blob> for BlobTokenCursor<'blob> {
             {
                 let token_pos = name_start - size_of::<TokenType>();
                 let token = struct_block.get::<TokenType>(token_pos);
-                token.0.read()
+                token.value()
             },
             TokenType::BEGIN_NODE
         );
@@ -137,7 +137,7 @@ impl<'blob> BlobTokenCursor<'blob> {
             };
 
             let position = self.position;
-            let token = match raw_token.0.read() {
+            let token = match raw_token.value() {
                 TokenType::BEGIN_NODE => {
                     self.read_begin_node().map_err(ReadTokenError::begin_node)?
                 }
@@ -186,8 +186,8 @@ impl<'blob> BlobTokenCursor<'blob> {
             .read_prop_header()
             .ok_or_else(|| ReadPropTokenError::missing_property_header(position))?;
 
-        let name_offset = usize::cast_from(header.name_offset.read());
-        let len = usize::cast_from(header.len.read());
+        let name_offset = usize::cast_from(header.name_offset());
+        let len = usize::cast_from(header.len());
 
         if name_offset >= strings_block.len() {
             return Err(ReadPropTokenError::property_name_offset_exceeding_block(

@@ -1,7 +1,7 @@
 use super::UNIT_ADDRESS_SEPARATOR;
 use crate::{polyfill, types::ByteStr};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Node<'blob> {
     full_name: &'blob ByteStr,
 }
