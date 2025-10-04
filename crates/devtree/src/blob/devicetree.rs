@@ -1,14 +1,12 @@
 use core::{fmt, ptr, slice};
 
 use dataview::DataView;
-use snafu::{ResultExt as _, Snafu, ensure};
-use snafu_utils::Location;
 
-use super::HeaderValidationError;
+use super::error::ReadDevicetreeError;
 use crate::{
-    blob::{Header, ReserveEntry},
+    blob::{Header, ReserveEntry, error::ReadDevicetreeErrorKind},
+    debug::SliceDebug as _,
     node_stack::{NodeStack, types::ArrayNodeStack},
-    polyfill::SliceDebug as _,
     token_cursor::types::{BlobNodeHandle, BlobTokenCursor},
     tree_cursor::{error::ReadTreeError, types::StackBasedTreeCursor},
 };
@@ -29,54 +27,20 @@ impl fmt::Debug for Devicetree {
     }
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-#[non_exhaustive]
-pub enum ParseDevicetreeError {
-    #[snafu(display("invalid DTB header"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidHeader {
-        #[snafu(implicit)]
-        location: Location,
-        #[snafu(source)]
-        source: HeaderValidationError,
-    },
-    #[snafu(display("buffer has insufficient bytes for DTB: {actual} < {needed}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InsufficientBytes {
-        needed: usize,
-        actual: usize,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("memory reservation block is unterminated"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    UnterminatedMemRsvmap {
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
-
 impl Devicetree {
-    pub unsafe fn from_ptr(ptr: *const u8) -> Result<&'static Self, ParseDevicetreeError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::parse_devicetree_error::*;
-
-        let header = unsafe { Header::from_ptr(ptr).context(InvalidHeaderSnafu)? };
+    pub unsafe fn from_ptr(ptr: *const u8) -> Result<&'static Self, ReadDevicetreeError> {
+        let header = unsafe { Header::from_ptr(ptr)? };
         let total_size = header.total_size();
         let bytes = unsafe { slice::from_raw_parts(ptr, total_size) };
         Self::from_bytes_internal(bytes, header)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self, ParseDevicetreeError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::parse_devicetree_error::*;
-
-        let header = Header::from_bytes(bytes).context(InvalidHeaderSnafu)?;
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self, ReadDevicetreeError> {
+        let header = Header::from_bytes(bytes)?;
         let total_size = header.total_size();
         ensure!(
             bytes.len() >= total_size,
-            InsufficientBytesSnafu {
+            ReadDevicetreeErrorKind::InsufficientBytes {
                 needed: total_size,
                 actual: bytes.len()
             }
@@ -87,10 +51,7 @@ impl Devicetree {
     fn from_bytes_internal<'blob>(
         bytes: &'blob [u8],
         header: &Header,
-    ) -> Result<&'blob Self, ParseDevicetreeError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::parse_devicetree_error::*;
-
+    ) -> Result<&'blob Self, ReadDevicetreeError> {
         assert!(bytes.len() >= header.total_size());
         assert_eq!(bytes.as_ptr().addr(), ptr::from_ref(header).addr());
 
@@ -101,7 +62,7 @@ impl Devicetree {
         );
         ensure!(
             mem_rsvmap.iter().any(ReserveEntry::is_terminator),
-            UnterminatedMemRsvmapSnafu
+            ReadDevicetreeErrorKind::UnterminatedMemRsvmap
         );
 
         // SAFETY: Devicetree is #[repr(transparent)] over [u8]

@@ -2,9 +2,12 @@ use core::{iter, marker::PhantomData, slice};
 
 use crate::{
     blob::{Item, Node},
-    node_stack::{NodeStack, error::StackOverflowError, types::ArrayNodeStack},
+    node_stack::{NodeStack, types::ArrayNodeStack},
     token_cursor::{Token, TokenCursor},
-    tree_cursor::{TreeCursor, error::ReadTreeError},
+    tree_cursor::{
+        TreeCursor,
+        error::{ReadTreeError, ReadTreeErrorKind},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,9 +79,7 @@ where
         U: NodeStack<TC::NodeHandle>,
     {
         let res = node_stack.clone_from_stack(&self.node_stack);
-        if matches!(res, Err(StackOverflowError)) {
-            return Err(node_stack);
-        }
+        ensure!(res.is_ok(), node_stack);
         Ok(StackBasedTreeCursor {
             node_stack,
             state: self.state,
@@ -204,32 +205,35 @@ where
         let token = self
             .token_cursor
             .read_token()
-            .map_err(ReadTreeError::read_token)?;
+            .map_err(|source| ReadTreeErrorKind::ReadToken { source })?;
         match token {
             Some(Token::Property(property)) => {
-                if !in_prop {
-                    return Err(ReadTreeError::unexpected_property_token(position));
-                }
+                ensure!(
+                    in_prop,
+                    ReadTreeErrorKind::UnexpectedPropertyToken { position }
+                );
                 Ok(Some(Item::Property(property)))
             }
             Some(Token::BeginNode(node)) => {
                 let item = self.token_cursor.make_node_handle(&node);
-                if matches!(self.node_stack.push(item), Err(StackOverflowError)) {
-                    return Err(ReadTreeError::too_deep());
-                }
+                ensure!(
+                    self.node_stack.push(item).is_ok(),
+                    ReadTreeErrorKind::TooDeep { position }
+                );
                 self.state = ReadState::Property;
                 Ok(Some(Item::Node(node)))
             }
             Some(Token::EndNode) => {
-                if !in_node {
-                    return Err(ReadTreeError::unexpected_end_node_token(position));
-                }
+                ensure!(
+                    in_node,
+                    ReadTreeErrorKind::UnexpectedEndNodeToken { position }
+                );
                 self.state = ReadState::Done;
                 Ok(None)
             }
             None => {
                 self.state = ReadState::Done;
-                Err(ReadTreeError::unexpected_end_of_tokens(position))
+                bail!(ReadTreeErrorKind::UnexpectedEndOfTokens { position })
             }
         }
     }

@@ -71,7 +71,7 @@ impl<'blob, const N: usize> DeserializeProperty<'blob> for [u8; N] {
         let property = de.property();
         let value = property.value();
         let Ok(value) = value.try_into() else {
-            return Err(DeserializePropertyError::value_length_mismatch(property, N).into());
+            bail!(DeserializePropertyError::value_length_mismatch(property, N));
         };
         Ok(value)
     }
@@ -94,7 +94,7 @@ impl<'blob, const N: usize> DeserializeProperty<'blob> for &'blob [u8; N] {
         let property = de.property();
         let value = property.value();
         let Ok(value) = value.try_into() else {
-            return Err(DeserializePropertyError::value_length_mismatch(property, N).into());
+            bail!(DeserializePropertyError::value_length_mismatch(property, N));
         };
         Ok(value)
     }
@@ -108,11 +108,10 @@ impl<'blob, const N: usize> DeserializeProperty<'blob> for &'blob [[u8; N]] {
         let property = de.property();
         let value = property.value();
         let (value, rest) = value.as_chunks();
-        if !rest.is_empty() {
-            return Err(
-                DeserializePropertyError::value_length_is_not_multiple_of(property, N).into(),
-            );
-        }
+        ensure!(
+            rest.is_empty(),
+            DeserializePropertyError::value_length_is_not_multiple_of(property, N)
+        );
         Ok(value)
     }
 }
@@ -308,13 +307,10 @@ impl<'blob> DeserializeProperty<'blob> for Reg<'blob> {
             .deserialize_node()?;
 
         let unit = address_cells.value() + size_cells.value();
-        if !value.len().is_multiple_of(unit) {
-            return Err(DeserializePropertyError::value_length_is_not_multiple_of(
-                de.property(),
-                unit,
-            )
-            .into());
-        }
+        ensure!(
+            value.len().is_multiple_of(unit),
+            DeserializePropertyError::value_length_is_not_multiple_of(de.property(), unit)
+        );
         Ok(Self::new(address_cells, size_cells, value))
     }
 }
@@ -356,13 +352,10 @@ impl<'blob> DeserializeProperty<'blob> for Ranges<'blob> {
 
         let unit =
             parent_address_cells.value() + child_address_cells.value() + child_size_cells.value();
-        if !value.len().is_multiple_of(unit) {
-            return Err(DeserializePropertyError::value_length_is_not_multiple_of(
-                de.property(),
-                unit,
-            )
-            .into());
-        }
+        ensure!(
+            value.len().is_multiple_of(unit),
+            DeserializePropertyError::value_length_is_not_multiple_of(de.property(), unit,)
+        );
         Ok(Self::new(
             child_address_cells,
             child_size_cells,

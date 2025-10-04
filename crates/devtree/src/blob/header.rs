@@ -1,12 +1,14 @@
-use core::{ops::Range, ptr};
+use core::ptr;
 
 use dataview::{DataView, Pod};
 use endian::Be;
 use platform_cast::CastFrom as _;
-use snafu::{OptionExt as _, Snafu, ensure};
-use snafu_utils::Location;
 
-use crate::blob::{ReserveEntry, struct_block::TokenType};
+use super::error::{ReadDevicetreeError, ReadDevicetreeErrorKind};
+use crate::{
+    blob::{ReserveEntry, struct_block::TokenType},
+    polyfill,
+};
 
 const MAGIC: u32 = 0xd00d_feed;
 const LAST_COMPATIBLE_VERSION: u32 = 16;
@@ -97,81 +99,6 @@ impl Header {
     }
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
-#[non_exhaustive]
-pub enum HeaderValidationError {
-    #[snafu(display("DTB header is not aligned to {HEADER_ALIGNMENT} bytes: {addr:#x}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    UnalignedHeader {
-        addr: usize,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("null pointer provided for DTB header"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    NullPointer {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("invalid magic number in DTB header: {magic:#x}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidMagic {
-        magic: u32,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("invalid total size in DTB header: {size}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InvalidTotalSize {
-        size: usize,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("incompatible DTB version: {version} (last compatible: {last_comp_version})"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    IncompatibleVersion {
-        version: u32,
-        last_comp_version: u32,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display(
-        "{block_name} is not aligned to {block_alignment} bytes: block_offset={block_offset}, \
-         block_size={block_size}"
-    ))]
-    #[snafu(provide(ref, priority, Location => location))]
-    UnalignedBlock {
-        block_name: &'static str,
-        block_alignment: usize,
-        block_offset: u32,
-        block_size: u32,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display(
-        "{block_name} is out of bounds: block_offset={block_offset}, block_size={block_size}, \
-         valid_range={}..{}", valid_range.start, valid_range.end,
-    ))]
-    #[snafu(provide(ref, priority, Location => location))]
-    BlockOutOfBounds {
-        block_name: &'static str,
-        block_offset: u32,
-        block_size: u32,
-        valid_range: Range<u32>,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("buffer has insufficient bytes for DTB header: {actual} < {needed}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    InsufficientBytes {
-        needed: usize,
-        actual: usize,
-        #[snafu(implicit)]
-        location: Location,
-    },
-}
-
 impl Header {
     /// Constructs a reference to a DTB header from a pointer.
     ///
@@ -179,77 +106,63 @@ impl Header {
     ///
     /// The caller must ensure that the pointer is valid and points to a memory
     /// region that is at least the size of `Header`.
-    pub unsafe fn from_ptr(ptr: *const u8) -> Result<&'static Self, HeaderValidationError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::header_validation_error::*;
-
-        ensure!(
-            ptr.addr().is_multiple_of(HEADER_ALIGNMENT),
-            UnalignedHeaderSnafu { addr: ptr.addr() }
-        );
-        #[expect(clippy::cast_ptr_alignment)]
-        let ptr = ptr.cast::<Self>();
-        let header = unsafe { ptr.as_ref() }.context(NullPointerSnafu)?;
+    pub unsafe fn from_ptr(ptr: *const u8) -> Result<&'static Self, ReadDevicetreeError> {
+        let ptr: *const Self = polyfill::ptr_cast_aligned(ptr).ok_or_else(|| {
+            ReadDevicetreeErrorKind::UnalignedPointer {
+                address: ptr.addr(),
+                expected_alignment: align_of::<Self>(),
+            }
+        })?;
+        let header = unsafe { ptr.as_ref() }.ok_or(ReadDevicetreeErrorKind::NullPointer)?;
         header.validate()?;
         Ok(header)
     }
 
     /// Constructs a reference to a DTB header from a byte slice.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self, HeaderValidationError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::header_validation_error::*;
-
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self, ReadDevicetreeError> {
         ensure!(
             bytes.len() >= size_of::<Self>(),
-            InsufficientBytesSnafu {
+            ReadDevicetreeErrorKind::InsufficientBytes {
                 needed: size_of::<Self>(),
-                actual: bytes.len()
+                actual: bytes.len(),
             }
         );
-        ensure!(
-            bytes.as_ptr().addr().is_multiple_of(HEADER_ALIGNMENT),
-            UnalignedHeaderSnafu {
-                addr: bytes.as_ptr().addr(),
-            }
-        );
-
         let data = DataView::from(bytes);
-        let header = data.try_get::<Self>(0).context(UnalignedHeaderSnafu {
-            addr: bytes.as_ptr().addr(),
-        })?;
-
+        let header =
+            data.try_get::<Self>(0)
+                .ok_or_else(|| ReadDevicetreeErrorKind::UnalignedPointer {
+                    address: bytes.as_ptr().addr(),
+                    expected_alignment: align_of::<Self>(),
+                })?;
         header.validate()?;
-
         Ok(header)
     }
 
-    fn validate(&self) -> Result<(), HeaderValidationError> {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::header_validation_error::*;
-
+    fn validate(&self) -> Result<(), ReadDevicetreeError> {
+        let magic = self.magic.read();
         ensure!(
-            self.magic.read() == MAGIC,
-            InvalidMagicSnafu {
-                magic: self.magic.read()
-            }
+            magic == MAGIC,
+            ReadDevicetreeErrorKind::InvalidMagic { magic }
         );
 
         let ptr = ptr::from_ref(self).cast::<u8>();
-        let size = usize::cast_from(self.total_size.read());
+        let total_size = usize::cast_from(self.total_size.read());
         ensure!(
-            size >= size_of::<Self>() && ptr.addr().checked_add(size).is_some(),
-            InvalidTotalSizeSnafu { size }
+            total_size >= size_of::<Self>() && ptr.addr().checked_add(total_size).is_some(),
+            ReadDevicetreeErrorKind::InvalidTotalSize { total_size }
         );
 
+        let version = self.version.read();
+        let last_compatible_version = self.last_compatible_version.read();
         ensure!(
-            self.last_compatible_version.read() == LAST_COMPATIBLE_VERSION,
-            IncompatibleVersionSnafu {
-                version: self.version.read(),
-                last_comp_version: self.last_compatible_version.read()
+            last_compatible_version == LAST_COMPATIBLE_VERSION,
+            ReadDevicetreeErrorKind::IncompatibleVersion {
+                version,
+                last_compatible_version,
             }
         );
 
-        let totalsize = self.total_size.read();
+        let total_size = self.total_size.read();
         let min_size_mem_rsvmap = u32::try_from(size_of::<ReserveEntry>()).unwrap();
         let mut prev_block_end = u32::try_from(size_of::<Self>()).unwrap();
 
@@ -259,7 +172,7 @@ impl Header {
             self.off_mem_rsvmap.read(),
             min_size_mem_rsvmap,
             &mut prev_block_end,
-            totalsize,
+            total_size,
         )?;
         check_block_layout(
             "structure block",
@@ -267,7 +180,7 @@ impl Header {
             self.off_dt_struct.read(),
             self.size_dt_struct.read(),
             &mut prev_block_end,
-            totalsize,
+            total_size,
         )?;
         check_block_layout(
             "strings block",
@@ -275,7 +188,7 @@ impl Header {
             self.off_dt_strings.read(),
             self.size_dt_strings.read(),
             &mut prev_block_end,
-            totalsize,
+            total_size,
         )?;
         Ok(())
     }
@@ -283,38 +196,34 @@ impl Header {
 
 fn check_block_layout(
     block_name: &'static str,
-    alignment: usize,
-    offset: u32,
-    size: u32,
+    block_alignment: usize,
+    block_offset: u32,
+    block_size: u32,
     prev_block_end: &mut u32,
     whole_block_end: u32,
-) -> Result<(), HeaderValidationError> {
-    #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-    use self::header_validation_error::*;
-
+) -> Result<(), ReadDevicetreeError> {
     ensure!(
-        usize::cast_from(offset).is_multiple_of(alignment)
-            && usize::cast_from(size).is_multiple_of(alignment),
-        UnalignedBlockSnafu {
+        usize::cast_from(block_offset).is_multiple_of(block_alignment)
+            && usize::cast_from(block_size).is_multiple_of(block_alignment),
+        ReadDevicetreeErrorKind::UnalignedBlock {
             block_name,
-            block_alignment: alignment,
-            block_offset: offset,
-            block_size: size,
+            block_alignment,
+            block_offset,
+            block_size,
         }
     );
     ensure!(
-        *prev_block_end <= offset
-            && offset
-                .checked_add(size)
-                .is_some_and(|end| end <= whole_block_end),
-        BlockOutOfBoundsSnafu {
+        *prev_block_end <= block_offset
+            && block_offset.checked_add(block_size).is_some()
+            && block_offset.checked_add(block_size).unwrap() <= whole_block_end,
+        ReadDevicetreeErrorKind::BlockOutOfBounds {
             block_name,
-            block_offset: offset,
-            block_size: size,
+            block_offset,
+            block_size,
             valid_range: *prev_block_end..whole_block_end,
         }
     );
-    *prev_block_end = offset.checked_add(size).unwrap();
+    *prev_block_end = block_offset.checked_add(block_size).unwrap();
     Ok(())
 }
 
@@ -325,6 +234,7 @@ mod tests {
     use dataview::PodMethods as _;
 
     use super::*;
+    use crate::blob::error::ReadDevicetreeErrorKind;
 
     fn header_to_ptr(header: &Header) -> *const u8 {
         ptr::from_ref(header).cast()
@@ -356,7 +266,7 @@ mod tests {
     fn test_null_pointer() {
         let ptr: *const u8 = core::ptr::null();
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(err, HeaderValidationError::NullPointer { .. }));
+        assert!(matches!(err.kind(), ReadDevicetreeErrorKind::NullPointer));
     }
 
     #[test]
@@ -364,7 +274,10 @@ mod tests {
         let header = valid_header();
         let ptr = header_to_ptr(&header).map_addr(|addr| addr + 1);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(err, HeaderValidationError::UnalignedHeader { .. }));
+        assert!(matches!(
+            err.kind(),
+            ReadDevicetreeErrorKind::UnalignedPointer { .. }
+        ));
     }
 
     #[test]
@@ -375,7 +288,10 @@ mod tests {
         };
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(err, HeaderValidationError::InvalidMagic { .. }));
+        assert!(matches!(
+            err.kind(),
+            ReadDevicetreeErrorKind::InvalidMagic { .. }
+        ));
     }
 
     #[test]
@@ -387,8 +303,8 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(matches!(
-            err,
-            HeaderValidationError::InvalidTotalSize { .. }
+            err.kind(),
+            ReadDevicetreeErrorKind::InvalidTotalSize { .. }
         ));
     }
 
@@ -402,8 +318,8 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(matches!(
-            err,
-            HeaderValidationError::IncompatibleVersion { .. }
+            err.kind(),
+            ReadDevicetreeErrorKind::IncompatibleVersion { .. }
         ));
     }
 
@@ -416,7 +332,7 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err, HeaderValidationError::UnalignedBlock { block_name, .. } if block_name == "memory reservation block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedBlock { block_name, .. } if *block_name == "memory reservation block")
         );
     }
 
@@ -429,7 +345,7 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err, HeaderValidationError::UnalignedBlock { block_name, .. } if block_name == "structure block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedBlock { block_name, .. } if *block_name == "structure block")
         );
     }
 
@@ -442,7 +358,7 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err, HeaderValidationError::BlockOutOfBounds { block_name, .. } if block_name == "memory reservation block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "memory reservation block")
         );
     }
 
@@ -456,7 +372,7 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err, HeaderValidationError::BlockOutOfBounds { block_name, .. } if block_name == "structure block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "structure block")
         );
     }
 
@@ -470,7 +386,7 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err, HeaderValidationError::BlockOutOfBounds { block_name, .. } if block_name == "strings block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "strings block")
         );
     }
 
@@ -479,8 +395,8 @@ mod tests {
         let buf = [0_u8; 8];
         let err = Header::from_bytes(&buf).unwrap_err();
         assert!(matches!(
-            err,
-            HeaderValidationError::InsufficientBytes { .. }
+            err.kind(),
+            ReadDevicetreeErrorKind::InsufficientBytes { .. }
         ));
     }
 
@@ -502,7 +418,7 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err, HeaderValidationError::BlockOutOfBounds { block_name, .. } if block_name == "structure block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "structure block")
         );
     }
 

@@ -13,6 +13,7 @@ publish.workspace = true
 [features]
 default = []
 alloc = [ "bstr/alloc" ]
+error-with-location = []
 unstable-provider-api = [ "snafu/unstable-provider-api" ]
 
 [dependencies]
@@ -20,15 +21,13 @@ bstr = { workspace = true }
 dataview.workspace = true
 derive_more = { workspace = true }
 devtree-derive.workspace = true
-either.workspace = true
 endian.workspace = true
 platform-cast.workspace = true
-snafu.workspace = true
-snafu-utils.workspace = true
 
 [dev-dependencies]
 argh.workspace = true
 devtree = { workspace = true, features = ["alloc"] }
+snafu.workspace = true
 snafu-utils.workspace = true
 
 [lints]

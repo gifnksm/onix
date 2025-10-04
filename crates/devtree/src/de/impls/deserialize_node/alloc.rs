@@ -117,13 +117,13 @@ impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
                     .deserialize_node()?,
             };
 
-            if !chunks.len().is_multiple_of(interrupt_cells.value()) {
-                return Err(DeserializePropertyError::custom(
+            ensure!(
+                chunks.len().is_multiple_of(interrupt_cells.value()),
+                DeserializePropertyError::custom(
                     &interrupts_property,
                     "invalid property value length of `interrupts`",
                 )
-                .into());
-            }
+            );
 
             return Ok(Self::new(
                 chunks

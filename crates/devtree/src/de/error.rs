@@ -1,91 +1,61 @@
 use core::str::Utf8Error;
 
-use snafu::{IntoError as _, Snafu};
-use snafu_utils::Location;
-
 use crate::{
     blob::{Node, Property},
     tree_cursor::error::ReadTreeError,
     types::property::Phandle,
 };
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
+#[derive(Debug, derive_more::Display, derive_more::Error)]
 #[non_exhaustive]
-pub enum DeserializeError {
-    #[snafu(display("failed to read devicetree"))]
-    #[snafu(provide(ref, priority, Location => location))]
+pub enum DeserializeErrorKind {
+    #[display("failed to read devicetree")]
     ReadTree {
-        #[snafu(source)]
+        #[error(source)]
         source: ReadTreeError,
-        #[snafu(implicit)]
-        location: Location,
     },
-    #[snafu(display("failed to deserialize devicetree property"))]
-    #[snafu(provide(ref, priority, Location => location))]
+    #[display("failed to deserialize devicetree property")]
     DeserializeProperty {
-        #[snafu(source)]
+        #[error(source)]
         source: DeserializePropertyError,
-        #[snafu(implicit)]
-        location: Location,
     },
-    #[snafu(display("failed to deserialize devicetree node"))]
-    #[snafu(provide(ref, priority, Location => location))]
+    #[display("failed to deserialize devicetree node")]
     DeserializeNode {
-        #[snafu(source)]
+        #[error(source)]
         source: DeserializeNodeError,
-        #[snafu(implicit)]
-        location: Location,
     },
-    #[snafu(display("deserializer does not support cloning"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    CloneNotSupported {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("no node with phandle={phandle}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MissingPhandleNode {
-        phandle: Phandle,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("message"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    Custom {
-        message: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
+    #[display("deserializer does not support cloning")]
+    CloneNotSupported,
+    #[display("no node with phandle={phandle}")]
+    MissingPhandleNode { phandle: Phandle },
+    #[display("{message}")]
+    Custom { message: &'static str },
 }
+
+define_error!(
+    pub struct DeserializeError {
+        kind: DeserializeErrorKind,
+    }
+);
 
 impl From<ReadTreeError> for DeserializeError {
     #[track_caller]
     fn from(source: ReadTreeError) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        ReadTreeSnafu.into_error(source)
+        DeserializeErrorKind::ReadTree { source }.into()
     }
 }
 
 impl From<DeserializePropertyError> for DeserializeError {
     #[track_caller]
     fn from(source: DeserializePropertyError) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        DeserializePropertySnafu.into_error(source)
+        DeserializeErrorKind::DeserializeProperty { source }.into()
     }
 }
 
 impl From<DeserializeNodeError> for DeserializeError {
     #[track_caller]
     fn from(source: DeserializeNodeError) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        DeserializeNodeSnafu.into_error(source)
+        DeserializeErrorKind::DeserializeNode { source }.into()
     }
 }
 
@@ -93,226 +63,147 @@ impl DeserializeError {
     #[track_caller]
     #[must_use]
     pub fn clone_not_supported() -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        CloneNotSupportedSnafu.build()
+        DeserializeErrorKind::CloneNotSupported.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn missing_phandle_node(phandle: Phandle) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        MissingPhandleNodeSnafu { phandle }.build()
+        DeserializeErrorKind::MissingPhandleNode { phandle }.into()
     }
 
     #[track_caller]
     #[must_use]
-    pub fn custom(_node: &Node<'_>, message: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_error::*;
-
-        CustomSnafu { message }.build()
+    pub fn custom(message: &'static str) -> Self {
+        DeserializeErrorKind::Custom { message }.into()
     }
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
+#[derive(Debug, derive_more::Display, derive_more::Error)]
 #[non_exhaustive]
-pub enum DeserializePropertyError {
-    #[snafu(display("expected value length is {expected}, got {actual}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ValueLengthMismatch {
-        expected: usize,
-        actual: usize,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("value length is not multiple of {expected_unit}, got {actual}"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    ValueLengthIsNotMultipleOf {
-        expected_unit: usize,
-        actual: usize,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("missing nul character in string value"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MissingNulInStringValue {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("invalid string value"))]
-    #[snafu(provide(ref, priority, Location => location))]
+pub enum DeserializePropertyErrorKind {
+    #[display("expected value length is {expected}, got {actual}")]
+    ValueLengthMismatch { expected: usize, actual: usize },
+    #[display("value length is not multiple of {expected_unit}, got {actual}")]
+    ValueLengthIsNotMultipleOf { expected_unit: usize, actual: usize },
+    #[display("missing nul character in string value")]
+    MissingNulInStringValue,
+    #[display("invalid string value")]
     InvalidStringValue {
-        #[snafu(source)]
+        #[error(source)]
         source: Utf8Error,
-        #[snafu(implicit)]
-        location: Location,
     },
-    #[snafu(display("message"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    Custom {
-        message: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
+    #[display("{message}")]
+    Custom { message: &'static str },
 }
+
+define_error!(
+    pub struct DeserializePropertyError {
+        kind: DeserializePropertyErrorKind,
+    }
+);
 
 impl DeserializePropertyError {
     #[track_caller]
     #[must_use]
     pub fn value_length_mismatch(property: &Property<'_>, expected: usize) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_property_error::*;
-
         let actual = property.value().len();
-        ValueLengthMismatchSnafu { expected, actual }.build()
+        DeserializePropertyErrorKind::ValueLengthMismatch { expected, actual }.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn value_length_is_not_multiple_of(property: &Property<'_>, expected_unit: usize) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_property_error::*;
-
         let actual = property.value().len();
-        ValueLengthIsNotMultipleOfSnafu {
+        DeserializePropertyErrorKind::ValueLengthIsNotMultipleOf {
             expected_unit,
             actual,
         }
-        .build()
+        .into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn missing_nul_in_string_value(_property: &Property<'_>) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_property_error::*;
-
-        MissingNulInStringValueSnafu.build()
+        DeserializePropertyErrorKind::MissingNulInStringValue.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn invalid_string_value(_property: &Property<'_>, source: Utf8Error) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_property_error::*;
-
-        InvalidStringValueSnafu.into_error(source)
+        DeserializePropertyErrorKind::InvalidStringValue { source }.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn custom(_property: &Property<'_>, message: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_property_error::*;
-
-        CustomSnafu { message }.build()
+        DeserializePropertyErrorKind::Custom { message }.into()
     }
 }
 
-#[derive(Debug, Snafu)]
-#[snafu(module)]
+#[derive(Debug, derive_more::Display, derive_more::Error)]
 #[non_exhaustive]
-pub enum DeserializeNodeError {
-    #[snafu(display("missing property: `{name}`"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MissingProperty {
-        name: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("duplicated property: `{name}`"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DuplicatedProperty {
-        name: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("missing child: `{name}`"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MissingChild {
-        name: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("duplicated child: `{name}`"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    DuplicatedChild {
-        name: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("no parent node"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    MissingParentNode {
-        #[snafu(implicit)]
-        location: Location,
-    },
-    #[snafu(display("message"))]
-    #[snafu(provide(ref, priority, Location => location))]
-    Custom {
-        message: &'static str,
-        #[snafu(implicit)]
-        location: Location,
-    },
+pub enum DeserializeNodeErrorKind {
+    #[display("missing property: `{property_name}`")]
+    MissingProperty { property_name: &'static str },
+    #[display("duplicated property: `{property_name}`")]
+    DuplicatedProperty { property_name: &'static str },
+    #[display("missing child: `{child_name}`")]
+    MissingChild { child_name: &'static str },
+    #[display("duplicated child: `{child_name}`")]
+    DuplicatedChild { child_name: &'static str },
+    #[display("no parent node")]
+    MissingParentNode,
+    #[display("{message}")]
+    Custom { message: &'static str },
 }
+
+define_error!(
+    pub struct DeserializeNodeError {
+        kind: DeserializeNodeErrorKind,
+    }
+);
 
 impl DeserializeNodeError {
     #[track_caller]
     #[must_use]
     pub fn missing_property(_node: &Node<'_>, name: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_node_error::*;
-
-        MissingPropertySnafu { name }.build()
+        DeserializeNodeErrorKind::MissingProperty {
+            property_name: name,
+        }
+        .into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn duplicated_property(_node: &Node<'_>, name: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_node_error::*;
-
-        DuplicatedPropertySnafu { name }.build()
+        DeserializeNodeErrorKind::DuplicatedProperty {
+            property_name: name,
+        }
+        .into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn missing_child(_node: &Node<'_>, name: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_node_error::*;
-
-        MissingChildSnafu { name }.build()
+        DeserializeNodeErrorKind::MissingChild { child_name: name }.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn duplicated_child(_node: &Node<'_>, name: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_node_error::*;
-
-        DuplicatedChildSnafu { name }.build()
+        DeserializeNodeErrorKind::DuplicatedChild { child_name: name }.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn missing_parent_node(_node: &Node<'_>) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_node_error::*;
-
-        MissingParentNodeSnafu.build()
+        DeserializeNodeErrorKind::MissingParentNode.into()
     }
 
     #[track_caller]
     #[must_use]
     pub fn custom(_node: &Node<'_>, message: &'static str) -> Self {
-        #[cfg_attr(not(test), expect(clippy::wildcard_imports))]
-        use self::deserialize_node_error::*;
-
-        CustomSnafu { message }.build()
+        DeserializeNodeErrorKind::Custom { message }.into()
     }
 }

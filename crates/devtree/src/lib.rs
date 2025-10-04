@@ -9,10 +9,14 @@ pub use devtree_derive::DeserializeNode;
 
 pub use self::blob::Devicetree;
 
+#[macro_use]
+mod macros;
+
 #[doc(hidden)]
 pub mod __private;
 pub mod blob;
 pub mod de;
+mod debug;
 pub mod node_stack;
 mod polyfill;
 pub mod token_cursor;

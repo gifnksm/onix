@@ -4,11 +4,18 @@ use dataview::{DataView, Pod};
 use platform_cast::CastFrom as _;
 
 use crate::{
-    blob::{Node, PATH_SEPARATOR, Property, PropertyHeader, TokenType},
-    polyfill::{self, SliceDebug as _},
+    blob::{
+        Node, PATH_SEPARATOR, Property,
+        struct_block::{PropertyHeader, TokenType},
+    },
+    debug::SliceDebug as _,
+    polyfill,
     token_cursor::{
         Token, TokenCursor,
-        error::{ReadBeginNodeTokenError, ReadPropTokenError, ReadTokenError},
+        error::{
+            ReadBeginNodeTokenError, ReadBeginNodeTokenErrorKind, ReadPropTokenError,
+            ReadPropTokenErrorKind, ReadTokenError, ReadTokenErrorKind,
+        },
     },
     types::ByteStr,
 };
@@ -138,14 +145,16 @@ impl<'blob> BlobTokenCursor<'blob> {
 
             let position = self.position;
             let token = match raw_token.value() {
-                TokenType::BEGIN_NODE => {
-                    self.read_begin_node().map_err(ReadTokenError::begin_node)?
-                }
+                TokenType::BEGIN_NODE => self
+                    .read_begin_node()
+                    .map_err(|source| ReadTokenErrorKind::BeginNode { source })?,
                 TokenType::END_NODE => Token::EndNode,
-                TokenType::PROP => self.read_prop_token().map_err(ReadTokenError::prop)?,
+                TokenType::PROP => self
+                    .read_prop_token()
+                    .map_err(|source| ReadTokenErrorKind::Prop { source })?,
                 TokenType::NOP => continue,
                 TokenType::END => return Ok(None),
-                token => return Err(ReadTokenError::unknown_token(token, position)),
+                token => bail!(ReadTokenErrorKind::UnknownToken { token, position }),
             };
             return Ok(Some(token));
         }
@@ -155,22 +164,24 @@ impl<'blob> BlobTokenCursor<'blob> {
         let position = self.position;
         let name = self
             .read_null_terminated_string()
-            .ok_or_else(|| ReadBeginNodeTokenError::unterminated_node_name(position))?;
+            .ok_or(ReadBeginNodeTokenErrorKind::UnterminatedNodeName { position })?;
         let is_root = !self.root_emitted;
-        if is_root && !name.is_empty() {
-            return Err(ReadBeginNodeTokenError::root_node_with_non_empty_name(
-                position,
-            ));
-        }
-        if !is_root && name.is_empty() {
-            return Err(ReadBeginNodeTokenError::non_root_node_with_empty_name(
-                position,
-            ));
+        if is_root {
+            ensure!(
+                name.is_empty(),
+                ReadBeginNodeTokenErrorKind::RootNodeWithNonEmptyName { position },
+            );
+        } else {
+            ensure!(
+                !name.is_empty(),
+                ReadBeginNodeTokenErrorKind::NonRootNodeWithEmptyName { position },
+            );
         }
 
-        if name.contains(&PATH_SEPARATOR) {
-            return Err(ReadBeginNodeTokenError::slash_in_name(position));
-        }
+        ensure!(
+            !name.contains(&PATH_SEPARATOR),
+            ReadBeginNodeTokenErrorKind::SlashInName { position },
+        );
 
         self.skip_token_padding();
         let node = Node::new(name);
@@ -184,21 +195,22 @@ impl<'blob> BlobTokenCursor<'blob> {
         let position = self.position;
         let header = self
             .read_prop_header()
-            .ok_or_else(|| ReadPropTokenError::missing_property_header(position))?;
+            .ok_or(ReadPropTokenErrorKind::MissingPropertyHeader { position })?;
 
         let name_offset = usize::cast_from(header.name_offset());
         let len = usize::cast_from(header.len());
 
-        if name_offset >= strings_block.len() {
-            return Err(ReadPropTokenError::property_name_offset_exceeding_block(
+        ensure!(
+            name_offset < strings_block.len(),
+            ReadPropTokenErrorKind::PropertyNameOffsetExceedingBlock {
                 position,
-                name_offset,
-            ));
-        }
+                name_offset
+            },
+        );
 
         let value = self
             .read_bytes(len)
-            .ok_or_else(|| ReadPropTokenError::property_value_exceeding_block(position, len))?;
+            .ok_or(ReadPropTokenErrorKind::PropertyValueExceedingBlock { position, len })?;
 
         self.skip_token_padding();
         let name_bytes = &strings_block[name_offset..];

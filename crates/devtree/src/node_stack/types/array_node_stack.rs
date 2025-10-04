@@ -55,7 +55,7 @@ where
 
     fn push(&mut self, item: T) -> Result<(), StackOverflowError> {
         let Some(slot) = self.items.get_mut(self.len) else {
-            return Err(StackOverflowError);
+            bail!(StackOverflowError);
         };
         *slot = item;
         self.len += 1;
@@ -78,7 +78,7 @@ where
         T: Clone,
     {
         if N < stack.len() {
-            return Err(StackOverflowError);
+            bail!(StackOverflowError);
         }
         self.items[..stack.len()].clone_from_slice(stack.as_slice());
         self.len = stack.len();

@@ -8,13 +8,14 @@ use alloc::boxed::Box;
 use core::{
     alloc::{AllocError, Layout},
     fmt::{self, DebugMap},
+    panic::Location,
 };
 
 use bitflags::bitflags;
 use platform_cast::CastInto as _;
 use riscv::register::satp::{Mode, Satp};
 use snafu::Snafu;
-use snafu_utils::Location;
+use snafu_utils::LocationWrap;
 
 use self::{
     address::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum},
@@ -35,35 +36,35 @@ const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 #[snafu(module)]
 pub enum PageTableError {
     #[snafu(display("failed to allocate new page table"))]
-    #[snafu(provide(ref, priority, Location => location))]
+    #[snafu(provide(ref, priority, Location => location.0))]
     AllocPageTable {
         #[snafu(source)]
         source: AllocError,
         #[snafu(implicit)]
-        location: Location,
+        location: LocationWrap,
     },
     #[snafu(display("failed to allocate new page table entry, layout: {layout:?}"))]
-    #[snafu(provide(ref, priority, Location => location))]
+    #[snafu(provide(ref, priority, Location => location.0))]
     AllocPage {
         layout: Layout,
         #[snafu(implicit)]
-        location: Location,
+        location: LocationWrap,
     },
     #[snafu(display(
         "attempted to map a page to an already mapped address, phys_page_num: {phys_page_num:#x}"
     ))]
-    #[snafu(provide(ref, priority, Location => location))]
+    #[snafu(provide(ref, priority, Location => location.0))]
     AlreadyMapped {
         phys_page_num: PhysPageNum,
         #[snafu(implicit)]
-        location: Location,
+        location: LocationWrap,
     },
     #[snafu(display("invalid flags for mapping page: {flags:?}"))]
-    #[snafu(provide(ref, priority, Location => location))]
+    #[snafu(provide(ref, priority, Location => location.0))]
     InvalidMapFlags {
         flags: MapPageFlags,
         #[snafu(implicit)]
-        location: Location,
+        location: LocationWrap,
     },
 }
 

@@ -25,11 +25,10 @@ where
     let value = match value.len() {
         4 => u64::from(u32::deserialize_property(de)?),
         8 => u64::deserialize_property(de)?,
-        _ => {
-            return Err(
-                DeserializePropertyError::custom(de.property(), "u32 or u64 expected").into(),
-            );
-        }
+        _ => bail!(DeserializePropertyError::custom(
+            de.property(),
+            "u32 or u64 expected"
+        )),
     };
     Ok(value)
 }
@@ -87,9 +86,10 @@ impl<'blob, T> PropertyCell<'blob, T> {
     }
 
     pub fn set(&mut self, value: T) -> Result<(), DeserializeError> {
-        if self.value.is_some() {
-            return Err(DeserializeNodeError::duplicated_property(&self.node, self.name).into());
-        }
+        ensure!(
+            self.value.is_none(),
+            DeserializeNodeError::duplicated_property(&self.node, self.name)
+        );
         self.value = Some(value);
         Ok(())
     }
@@ -149,9 +149,10 @@ impl<'blob, T> NodeCell<'blob, T> {
     }
 
     pub fn set(&mut self, value: T) -> Result<(), DeserializeError> {
-        if self.value.is_some() {
-            return Err(DeserializeNodeError::duplicated_child(&self.node, self.name).into());
-        }
+        ensure!(
+            self.value.is_none(),
+            DeserializeNodeError::duplicated_child(&self.node, self.name)
+        );
         self.value = Some(value);
         Ok(())
     }

@@ -7,35 +7,36 @@ use alloc::{boxed::Box, string::String};
 use core::{
     error::{self, Error},
     fmt,
+    panic::Location,
 };
 
 use ansi_term::{Color, WithFg};
 use snafu::{GenerateImplicitData, Snafu};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Location(&'static core::panic::Location<'static>);
+pub struct LocationWrap(pub &'static core::panic::Location<'static>);
 
-impl Default for Location {
+impl Default for LocationWrap {
     #[track_caller]
     fn default() -> Self {
         Self(core::panic::Location::caller())
     }
 }
 
-impl GenerateImplicitData for Location {
+impl GenerateImplicitData for LocationWrap {
     #[track_caller]
     fn generate() -> Self {
         Self::default()
     }
 }
 
-impl fmt::Debug for Location {
+impl fmt::Debug for LocationWrap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.0, f)
     }
 }
 
-impl fmt::Display for Location {
+impl fmt::Display for LocationWrap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&self.0, f)
     }
@@ -43,12 +44,12 @@ impl fmt::Display for Location {
 
 #[derive(Debug, Snafu)]
 #[snafu(whatever, display("{message}"))]
-#[snafu(provide(ref, priority, Location => location))]
+#[snafu(provide(ref, priority, Location => location.0))]
 #[snafu(provide(opt, ref, chain, dyn core::error::Error => source.as_deref()))]
 pub struct GenericError {
     message: String,
     #[snafu(implicit)]
-    location: Location,
+    location: LocationWrap,
     #[snafu(source(from(Box<dyn core::error::Error>, Some)))]
     #[snafu(provide(false))]
     source: Option<Box<dyn core::error::Error>>,

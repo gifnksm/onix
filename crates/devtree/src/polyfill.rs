@@ -1,6 +1,6 @@
-use core::{fmt, ops::Range};
+use core::ops::Range;
 
-// alternatives to rust feature `slice_split_once`<https://github.com/rust-lang/rust/issues/112811>
+// polyfill of unstable rust feature `slice_split_once`<https://github.com/rust-lang/rust/issues/112811>
 pub(crate) fn slice_split_once<P, T>(s: &[T], pred: P) -> Option<(&[T], &[T])>
 where
     P: FnMut(&T) -> bool,
@@ -9,7 +9,7 @@ where
     Some((&s[..pos], &s[pos + 1..]))
 }
 
-// alternatives to rust feature `slice_split_once`<https://github.com/rust-lang/rust/issues/112811>
+// polyfill of unstable rust feature `slice_split_once`<https://github.com/rust-lang/rust/issues/112811>
 pub(crate) fn slice_rsplit_once<P, T>(s: &[T], pred: P) -> Option<(&[T], &[T])>
 where
     P: FnMut(&T) -> bool,
@@ -18,7 +18,7 @@ where
     Some((&s[..pos], &s[pos + 1..]))
 }
 
-// alternatives to rust feature `substr_range` <https://github.com/rust-lang/rust/issues/126769>
+// polyfill of unstable rust feature `substr_range` <https://github.com/rust-lang/rust/issues/126769>
 pub(crate) fn slice_subslice_range<T>(slice: &[T], subslice: &[T]) -> Option<Range<usize>> {
     assert!(size_of::<T>() != 0, "elements are zero-sized");
 
@@ -37,41 +37,13 @@ pub(crate) fn slice_subslice_range<T>(slice: &[T], subslice: &[T]) -> Option<Ran
     (start <= slice.len() && end <= slice.len()).then_some(start..end)
 }
 
-pub(crate) trait SliceDebug<T> {
-    fn slice_debug(&self, max_len: usize) -> DebugSlice<'_, T>;
+// polyfill of unstable rust feature `ptr_is_aligned_to` <https://github.com/rust-lang/rust/issues/96284>
+pub(crate) fn ptr_is_aligned_to<T>(ptr: *const T, align: usize) -> bool {
+    assert!(align.is_power_of_two());
+    (ptr.addr() & (align - 1)) == 0
 }
 
-impl<T> SliceDebug<T> for [T] {
-    fn slice_debug(&self, max_len: usize) -> DebugSlice<'_, T> {
-        DebugSlice {
-            data: self,
-            max_len,
-        }
-    }
-}
-
-pub(crate) struct DebugSlice<'a, T> {
-    data: &'a [T],
-    max_len: usize,
-}
-
-impl<T> fmt::Debug for DebugSlice<'_, T>
-where
-    T: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct More(usize);
-        impl fmt::Debug for More {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "...({} more)", self.0)
-            }
-        }
-
-        let mut dl = f.debug_list();
-        dl.entries(self.data.iter().take(self.max_len));
-        if self.data.len() > self.max_len {
-            dl.entry(&More(self.data.len() - self.max_len));
-        }
-        dl.finish()
-    }
+// polyfill of unstable rust feature `pointer_try_cast_aligned` <https://github.com/rust-lang/rust/issues/141221>
+pub(crate) fn ptr_cast_aligned<T, U>(ptr: *const T) -> Option<*const U> {
+    ptr_is_aligned_to(ptr, align_of::<U>()).then(|| ptr.cast())
 }
