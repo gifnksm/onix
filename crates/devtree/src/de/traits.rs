@@ -28,7 +28,7 @@ pub trait PropertyCollection<'blob>: Default {
         D: PropertyDeserializer<'de, 'blob> + ?Sized;
 }
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::IsVariant)]
 pub enum ItemDeserializer<PD, ND> {
     Property(PD),
     Node(ND),
@@ -36,7 +36,7 @@ pub enum ItemDeserializer<PD, ND> {
 
 impl<PD, ND> ItemDeserializer<PD, ND> {
     #[must_use]
-    pub fn as_property(&self) -> Option<&PD> {
+    pub const fn as_property(&self) -> Option<&PD> {
         match self {
             Self::Property(de) => Some(de),
             Self::Node(_) => None,
@@ -44,7 +44,7 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
     }
 
     #[must_use]
-    pub fn as_node(&self) -> Option<&ND> {
+    pub const fn as_node(&self) -> Option<&ND> {
         match self {
             Self::Property(_) => None,
             Self::Node(de) => Some(de),
@@ -65,16 +65,6 @@ impl<PD, ND> ItemDeserializer<PD, ND> {
             Self::Property(_) => None,
             Self::Node(de) => Some(de),
         }
-    }
-
-    #[must_use]
-    pub fn is_property(&self) -> bool {
-        matches!(self, Self::Property(_))
-    }
-
-    #[must_use]
-    pub fn is_node(&self) -> bool {
-        matches!(self, Self::Node(_))
     }
 }
 

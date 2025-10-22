@@ -3,12 +3,12 @@ use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use devtree::{
     DeserializeNode, Devicetree,
     de::util,
-    tree_cursor::{TreeCursor as _, TreeIterator as _},
-    types::{
-        ByteStr,
+    model::{
         node::{InterruptGeneratingDevice, NodePath},
         property::Reg,
     },
+    tree_cursor::{TreeCursor as _, TreeIterator as _},
+    types::ByteStr,
 };
 use snafu::{OptionExt as _, ResultExt as _};
 

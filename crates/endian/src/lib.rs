@@ -5,7 +5,8 @@
 //! different byte orders. Useful for parsing binary formats and working with
 //! hardware or network protocols.
 
-#![cfg_attr(not(test), no_std)]
+#![no_std]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use core::fmt;
 
@@ -139,8 +140,13 @@ macro_rules! impl_common_traits {
 
 impl_common_traits!(Be, Le);
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
+
+    use alloc::format;
+
     use super::*;
 
     #[test]

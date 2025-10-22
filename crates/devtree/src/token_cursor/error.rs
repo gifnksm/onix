@@ -1,4 +1,4 @@
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum ReadTokenErrorKind {
     #[display("unknown token: token={token:#x}, offset={position}")]
@@ -21,7 +21,7 @@ define_error!(
     }
 );
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum ReadBeginNodeTokenErrorKind {
     #[display("unterminated node name: position={position}")]
@@ -40,7 +40,7 @@ define_error!(
     }
 );
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum ReadPropTokenErrorKind {
     #[display("missing property header: position={position}")]

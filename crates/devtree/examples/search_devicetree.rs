@@ -11,7 +11,7 @@ use devtree::{
     Devicetree,
     blob::Node,
     tree_cursor::{TreeCursor, TreeCursorAllocExt as _, TreeIterator as _},
-    types::property::Phandle,
+    model::property::Phandle,
 };
 use snafu::ResultExt as _;
 use snafu_utils::{GenericError, Report};

@@ -22,7 +22,7 @@ bitflags = "2.9.4"
 bstr = { version = "1.12.0", default-features = false }
 cfg-if = "1.0.3"
 dataview = "1.0.1"
-derive_more = { version = "2.0.1", default-features = false, features = ["debug", "display", "error", "from"] }
+derive_more = { version = "2.0.1", default-features = false, features = ["debug", "display", "error", "from", "is_variant"] }
 devtree = { path = "crates/devtree", features = ["alloc", "error-with-location", "unstable-provider-api"] }
 devtree-derive = { version = "0.1.0", path = "crates/devtree-derive" }
 endian = { path = "crates/endian" }
@@ -50,6 +50,7 @@ deprecated-safe = "warn"
 future-incompatible = "warn"
 nonstandard-style = "warn"
 unused = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }
 
 [workspace.lints.clippy]
 # pedantic group

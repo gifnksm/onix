@@ -3,9 +3,7 @@
 #![no_std]
 #![no_main]
 
-use alloc::{
-    borrow::ToOwned as _, boxed::Box, collections::vec_deque::VecDeque, format, sync::Arc,
-};
+use alloc::{borrow::ToOwned as _, collections::vec_deque::VecDeque, format, sync::Arc};
 use core::{
     convert::Infallible,
     ffi::c_void,
@@ -14,7 +12,7 @@ use core::{
     time::Duration,
 };
 
-use devtree::Devicetree;
+use devtree::{Devicetree, blob::OwnedDevicetree};
 use snafu::ResultExt as _;
 use spin::Once;
 
@@ -59,7 +57,7 @@ const ONIX_LOGO: &str = r"
  \____/|_| |_|_/_/\_\
 ";
 
-static DEVICETREE: Once<Box<Devicetree>> = Once::new();
+static DEVICETREE: Once<OwnedDevicetree> = Once::new();
 
 fn primary_cpu_entry(cpuid: Cpuid, dtb_pa: usize) -> Result<KernelStack, GenericError> {
     memory::allocator::init();

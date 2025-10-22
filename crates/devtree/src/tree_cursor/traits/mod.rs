@@ -8,8 +8,9 @@ use crate::{
         error::DeserializeError,
         types::{DefaultNodeDeserializer, DefaultPropertyDeserializer},
     },
+    model::property::Phandle,
     token_cursor::TokenCursor,
-    types::{ByteStr, property::Phandle},
+    types::ByteStr,
 };
 
 #[cfg(feature = "alloc")]
@@ -177,7 +178,7 @@ pub trait TreeIterator<'blob>: Iterator {
     }
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, derive_more::From, derive_more::IsVariant)]
 pub enum TreeItemRef<'tc, 'blob, TC> {
     Property(TreePropertyRef<'tc, 'blob, TC>),
     Node(TreeNodeRef<'tc, 'blob, TC>),
@@ -185,7 +186,7 @@ pub enum TreeItemRef<'tc, 'blob, TC> {
 
 impl<'tc, 'blob, TC> TreeItemRef<'tc, 'blob, TC> {
     #[must_use]
-    pub fn as_property(&self) -> Option<&TreePropertyRef<'tc, 'blob, TC>> {
+    pub const fn as_property(&self) -> Option<&TreePropertyRef<'tc, 'blob, TC>> {
         match self {
             Self::Property(r) => Some(r),
             Self::Node(_) => None,
@@ -193,7 +194,7 @@ impl<'tc, 'blob, TC> TreeItemRef<'tc, 'blob, TC> {
     }
 
     #[must_use]
-    pub fn as_node(&self) -> Option<&TreeNodeRef<'tc, 'blob, TC>> {
+    pub const fn as_node(&self) -> Option<&TreeNodeRef<'tc, 'blob, TC>> {
         match self {
             Self::Property(_) => None,
             Self::Node(r) => Some(r),
@@ -201,7 +202,7 @@ impl<'tc, 'blob, TC> TreeItemRef<'tc, 'blob, TC> {
     }
 
     #[must_use]
-    pub fn into_property(self) -> Option<TreePropertyRef<'tc, 'blob, TC>> {
+    pub const fn into_property(self) -> Option<TreePropertyRef<'tc, 'blob, TC>> {
         match self {
             Self::Property(r) => Some(r),
             Self::Node(_) => None,
@@ -209,21 +210,11 @@ impl<'tc, 'blob, TC> TreeItemRef<'tc, 'blob, TC> {
     }
 
     #[must_use]
-    pub fn into_node(self) -> Option<TreeNodeRef<'tc, 'blob, TC>> {
+    pub const fn into_node(self) -> Option<TreeNodeRef<'tc, 'blob, TC>> {
         match self {
             Self::Property(_) => None,
             Self::Node(r) => Some(r),
         }
-    }
-
-    #[must_use]
-    pub fn is_property(&self) -> bool {
-        matches!(self, Self::Property(_))
-    }
-
-    #[must_use]
-    pub fn is_node(&self) -> bool {
-        matches!(self, Self::Node(_))
     }
 }
 

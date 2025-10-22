@@ -38,7 +38,8 @@
 //! - Iteration: O(1) per element
 //! - Memory: Stack-allocated with fixed capacity
 
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![no_std]
 
 use core::{iter::FusedIterator, mem, ops::Range, slice};
 
@@ -389,8 +390,13 @@ impl<'a, const CAP: usize> IntoIterator for &'a RangeSet<CAP> {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
+
+    use alloc::{vec, vec::Vec};
+
     use super::*;
 
     #[test]

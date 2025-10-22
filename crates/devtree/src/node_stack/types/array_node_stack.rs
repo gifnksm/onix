@@ -94,3 +94,113 @@ where
         fmt::Debug::fmt(&self.items[..self.len], f)
     }
 }
+
+#[cfg_attr(coverage_nightly, coverage(off))]
+#[cfg(test)]
+mod tests {
+    extern crate alloc;
+
+    use alloc::format;
+
+    use super::*;
+
+    #[test]
+    fn test_default_and_new() {
+        let stack: ArrayNodeStack<i32, 4> = ArrayNodeStack::default();
+        assert_eq!(stack.len(), 0);
+
+        let stack2: ArrayNodeStack<i32, 4> = ArrayNodeStack::new();
+        assert_eq!(stack2.len(), 0);
+    }
+
+    #[test]
+    fn test_push_and_pop() {
+        let mut stack: ArrayNodeStack<i32, 2> = ArrayNodeStack::new();
+        assert!(stack.current().is_none());
+
+        stack.push(1).unwrap();
+        assert_eq!(stack.current(), Some(&1));
+        stack.push(2).unwrap();
+        assert_eq!(stack.current(), Some(&2));
+        assert_eq!(stack.len(), 2);
+        assert_eq!(stack.as_slice(), &[1, 2]);
+        assert_eq!(stack.current(), Some(&2));
+
+        assert_eq!(stack.pop(), Some(2));
+        assert_eq!(stack.pop(), Some(1));
+        assert_eq!(stack.pop(), None);
+        assert_eq!(stack.len(), 0);
+    }
+
+    #[test]
+    fn test_push_overflow() {
+        let mut stack: ArrayNodeStack<i32, 1> = ArrayNodeStack::new();
+        stack.push(1).unwrap();
+        assert!(stack.push(2).is_err());
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut stack: ArrayNodeStack<i32, 3> = ArrayNodeStack::new();
+        stack.push(1).unwrap();
+        stack.push(2).unwrap();
+        stack.clear();
+        assert!(stack.is_empty());
+        assert_eq!(stack.as_slice(), &[]);
+        assert!(stack.current().is_none());
+    }
+
+    #[test]
+    fn test_as_slice() {
+        let mut stack: ArrayNodeStack<i32, 3> = ArrayNodeStack::new();
+        stack.push(1).unwrap();
+        stack.push(2).unwrap();
+        assert_eq!(stack.as_slice(), &[1, 2]);
+    }
+
+    #[test]
+    fn test_try_clone() {
+        let mut stack: ArrayNodeStack<i32, 2> = ArrayNodeStack::new();
+        stack.push(7).unwrap();
+        let cloned = stack.try_clone().unwrap();
+        assert_eq!(cloned.as_slice(), &[7]);
+    }
+
+    #[test]
+    fn test_clone_from_stack() {
+        let mut stack1: ArrayNodeStack<i32, 3> = ArrayNodeStack::new();
+        let mut stack2: ArrayNodeStack<i32, 3> = ArrayNodeStack::new();
+
+        stack1.push(10).unwrap();
+        stack1.push(20).unwrap();
+
+        stack2.push(1).unwrap();
+        stack2.push(2).unwrap();
+        stack2.push(3).unwrap();
+
+        stack2.clone_from_stack(&stack1).unwrap();
+        assert_eq!(stack2.as_slice(), &[10, 20]);
+        assert_eq!(stack2.len(), 2);
+    }
+
+    #[test]
+    fn test_clone_from_stack_overflow() {
+        let mut stack1: ArrayNodeStack<i32, 2> = ArrayNodeStack::new();
+        let mut stack2: ArrayNodeStack<i32, 1> = ArrayNodeStack::new();
+
+        stack1.push(1).unwrap();
+        stack1.push(2).unwrap();
+
+        let result = stack2.clone_from_stack(&stack1);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_debug_fmt() {
+        let mut stack: ArrayNodeStack<i32, 2> = ArrayNodeStack::new();
+        stack.push(10).unwrap();
+        stack.push(20).unwrap();
+        let s = format!("{stack:?}");
+        assert_eq!(s, "[10, 20]");
+    }
+}

@@ -10,8 +10,9 @@ use crate::{
     polyfill,
 };
 
-const MAGIC: u32 = 0xd00d_feed;
-const LAST_COMPATIBLE_VERSION: u32 = 16;
+pub const MAGIC: u32 = 0xd00d_feed;
+pub const VERSION: u32 = 17;
+pub const LAST_COMPATIBLE_VERSION: u32 = 16;
 const HEADER_ALIGNMENT: usize = 8;
 const MEM_RSVMAP_ALIGNMENT: usize = 8;
 const STRUCTURE_ALIGNMENT: usize = 4;
@@ -42,6 +43,38 @@ pub struct Header {
 }
 
 impl Header {
+    #[cfg(feature = "testing")]
+    pub(crate) fn new_for_test(
+        magic: u32,
+        version: u32,
+        last_compatible_version: u32,
+        boot_cpuid_phys: u32,
+        mem_rsvmap: &[ReserveEntry],
+        struct_block: &[u8],
+        strings_block: &[u8],
+    ) -> Self {
+        let mem_rsvmap_offset = u32::try_from(size_of::<Self>().next_multiple_of(8)).unwrap();
+        let mem_rsvmap_size = u32::try_from(size_of_val(mem_rsvmap)).unwrap();
+        let struct_block_offset = (mem_rsvmap_offset + mem_rsvmap_size).next_multiple_of(8);
+        let struct_block_size = u32::try_from(struct_block.len()).unwrap();
+        let strings_block_offset = (struct_block_offset + struct_block_size).next_multiple_of(8);
+        let strings_block_size = u32::try_from(strings_block.len()).unwrap();
+        let total_size = strings_block_offset + strings_block_size;
+
+        Self {
+            magic: Be::new(&magic),
+            total_size: Be::new(&total_size),
+            off_dt_struct: Be::new(&struct_block_offset),
+            off_dt_strings: Be::new(&strings_block_offset),
+            off_mem_rsvmap: Be::new(&mem_rsvmap_offset),
+            version: Be::new(&version),
+            last_compatible_version: Be::new(&last_compatible_version),
+            boot_cpuid_phys: Be::new(&boot_cpuid_phys),
+            size_dt_strings: Be::new(&strings_block_size),
+            size_dt_struct: Be::new(&struct_block_size),
+        }
+    }
+
     #[must_use]
     pub fn magic(&self) -> u32 {
         self.magic.read()
@@ -203,8 +236,7 @@ fn check_block_layout(
     whole_block_end: u32,
 ) -> Result<(), ReadDevicetreeError> {
     ensure!(
-        usize::cast_from(block_offset).is_multiple_of(block_alignment)
-            && usize::cast_from(block_size).is_multiple_of(block_alignment),
+        usize::cast_from(block_offset).is_multiple_of(block_alignment),
         ReadDevicetreeErrorKind::UnalignedBlock {
             block_name,
             block_alignment,
@@ -214,8 +246,9 @@ fn check_block_layout(
     );
     ensure!(
         *prev_block_end <= block_offset
-            && block_offset.checked_add(block_size).is_some()
-            && block_offset.checked_add(block_size).unwrap() <= whole_block_end,
+            && block_offset
+                .checked_add(block_size)
+                .is_some_and(|end| end <= whole_block_end),
         ReadDevicetreeErrorKind::BlockOutOfBounds {
             block_name,
             block_offset,
@@ -227,6 +260,7 @@ fn check_block_layout(
     Ok(())
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     use core::ptr;
@@ -241,18 +275,38 @@ mod tests {
     }
 
     fn valid_header() -> Header {
-        Header {
-            magic: MAGIC.into(),
-            total_size: 128.into(),
-            off_dt_struct: 64.into(),
-            off_dt_strings: 96.into(),
-            off_mem_rsvmap: 40.into(),
-            version: 17.into(),
-            last_compatible_version: LAST_COMPATIBLE_VERSION.into(),
-            boot_cpuid_phys: 0.into(),
-            size_dt_strings: 16.into(),
-            size_dt_struct: 16.into(),
-        }
+        extern crate std;
+        std::dbg!(Header::new_for_test(
+            MAGIC,
+            VERSION,
+            LAST_COMPATIBLE_VERSION,
+            0,
+            &[ReserveEntry::terminator()],
+            &[0; 32],
+            &[0; 16],
+        ))
+    }
+
+    #[test]
+    fn test_header_bigendian() {
+        let header = valid_header();
+        let bytes = header.as_bytes();
+        let (chunks, rest) = bytes.as_chunks::<4>();
+        assert!(rest.is_empty());
+
+        assert_eq!(u32::from_be_bytes(chunks[0]), header.magic.read());
+        assert_eq!(u32::from_be_bytes(chunks[1]), header.total_size.read());
+        assert_eq!(u32::from_be_bytes(chunks[2]), header.off_dt_struct.read());
+        assert_eq!(u32::from_be_bytes(chunks[3]), header.off_dt_strings.read());
+        assert_eq!(u32::from_be_bytes(chunks[4]), header.off_mem_rsvmap.read());
+        assert_eq!(u32::from_be_bytes(chunks[5]), header.version.read());
+        assert_eq!(
+            u32::from_be_bytes(chunks[6]),
+            header.last_compatible_version.read()
+        );
+        assert_eq!(u32::from_be_bytes(chunks[7]), header.boot_cpuid_phys.read());
+        assert_eq!(u32::from_be_bytes(chunks[8]), header.size_dt_strings.read());
+        assert_eq!(u32::from_be_bytes(chunks[9]), header.size_dt_struct.read());
     }
 
     #[test]
@@ -266,7 +320,10 @@ mod tests {
     fn test_null_pointer() {
         let ptr: *const u8 = core::ptr::null();
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(err.kind(), ReadDevicetreeErrorKind::NullPointer));
+        assert!(
+            matches!(err.kind(), ReadDevicetreeErrorKind::NullPointer),
+            "err: {err:?}",
+        );
     }
 
     #[test]
@@ -274,10 +331,10 @@ mod tests {
         let header = valid_header();
         let ptr = header_to_ptr(&header).map_addr(|addr| addr + 1);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(
-            err.kind(),
-            ReadDevicetreeErrorKind::UnalignedPointer { .. }
-        ));
+        assert!(
+            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedPointer { .. }),
+            "err: {err:?}",
+        );
     }
 
     #[test]
@@ -288,10 +345,10 @@ mod tests {
         };
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(
-            err.kind(),
-            ReadDevicetreeErrorKind::InvalidMagic { .. }
-        ));
+        assert!(
+            matches!(err.kind(), ReadDevicetreeErrorKind::InvalidMagic { .. }),
+            "err: {err:?}",
+        );
     }
 
     #[test]
@@ -302,10 +359,10 @@ mod tests {
         };
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(
-            err.kind(),
-            ReadDevicetreeErrorKind::InvalidTotalSize { .. }
-        ));
+        assert!(
+            matches!(err.kind(), ReadDevicetreeErrorKind::InvalidTotalSize { .. }),
+            "err: {err:?}",
+        );
     }
 
     #[test]
@@ -317,10 +374,13 @@ mod tests {
         };
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
-        assert!(matches!(
-            err.kind(),
-            ReadDevicetreeErrorKind::IncompatibleVersion { .. }
-        ));
+        assert!(
+            matches!(
+                err.kind(),
+                ReadDevicetreeErrorKind::IncompatibleVersion { .. }
+            ),
+            "err: {err:?}",
+        );
     }
 
     #[test]
@@ -332,7 +392,8 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedBlock { block_name, .. } if *block_name == "memory reservation block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedBlock { block_name, .. } if *block_name == "memory reservation block"),
+            "err: {err:?}",
         );
     }
 
@@ -345,7 +406,8 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedBlock { block_name, .. } if *block_name == "structure block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedBlock { block_name, .. } if *block_name == "structure block"),
+            "err: {err:?}",
         );
     }
 
@@ -358,7 +420,8 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "memory reservation block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "memory reservation block"),
+            "err: {err:?}",
         );
     }
 
@@ -366,13 +429,15 @@ mod tests {
     fn test_struct_block_size_out_of_bounds() {
         let header = Header {
             off_dt_struct: 64.into(),
-            size_dt_struct: 100.into(), // 64 + 100 = 164 > totalsize (128)
+            size_dt_struct: 100.into(), // 64 + 100 = 164 > totalsize (104)
             ..valid_header()
         };
+        assert_eq!(header.total_size(), 104);
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "structure block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "structure block"),
+            "err: {err:?}",
         );
     }
 
@@ -380,13 +445,15 @@ mod tests {
     fn test_strings_block_size_out_of_bounds() {
         let header = Header {
             off_dt_strings: 96.into(),
-            size_dt_strings: 40.into(), // 96 + 40 = 136 > totalsize (128)
+            size_dt_strings: 40.into(), // 96 + 40 = 136 > totalsize (104)
             ..valid_header()
         };
+        assert_eq!(header.total_size(), 104);
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "strings block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "strings block"),
+            "err: {err:?}",
         );
     }
 
@@ -394,10 +461,30 @@ mod tests {
     fn test_from_bytes_insufficient() {
         let buf = [0_u8; 8];
         let err = Header::from_bytes(&buf).unwrap_err();
-        assert!(matches!(
-            err.kind(),
-            ReadDevicetreeErrorKind::InsufficientBytes { .. }
-        ));
+        assert!(
+            matches!(
+                err.kind(),
+                ReadDevicetreeErrorKind::InsufficientBytes { .. }
+            ),
+            "err: {err:?}",
+        );
+    }
+
+    #[test]
+    fn test_from_bytes_unaligned() {
+        #[repr(align(8))]
+        struct Bytes([u8; size_of::<Header>() + HEADER_ALIGNMENT]);
+        let buf = Bytes([0_u8; size_of::<Header>() + HEADER_ALIGNMENT]);
+        assert!(
+            buf.0.as_ptr().addr().is_multiple_of(HEADER_ALIGNMENT),
+            "addr: {:#p}",
+            buf.0.as_ptr()
+        );
+        let err = Header::from_bytes(&buf.0[1..]).unwrap_err();
+        assert!(
+            matches!(err.kind(), ReadDevicetreeErrorKind::UnalignedPointer { .. }),
+            "err: {err:?}",
+        );
     }
 
     #[test]
@@ -410,7 +497,8 @@ mod tests {
 
     #[test]
     fn test_overlapping_struct_block() {
-        let overlap_off = 40 + u32::try_from(size_of::<ReserveEntry>()).unwrap() - 4;
+        let overlap_off =
+            u32::try_from(size_of::<Header>() + size_of::<ReserveEntry>()).unwrap() - 4;
         let header = Header {
             off_dt_struct: overlap_off.into(), // Starts before end of mem_rsvmap block
             ..valid_header()
@@ -418,13 +506,14 @@ mod tests {
         let ptr = header_to_ptr(&header);
         let err = unsafe { Header::from_ptr(ptr) }.unwrap_err();
         assert!(
-            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "structure block")
+            matches!(err.kind(), ReadDevicetreeErrorKind::BlockOutOfBounds { block_name, .. } if *block_name == "structure block"),
+            "err: {err:?}",
         );
     }
 
     #[test]
     fn test_zero_sized_struct_block() {
-        let off_struct = 40 + u32::try_from(size_of::<ReserveEntry>()).unwrap();
+        let off_struct = u32::try_from(size_of::<Header>() + size_of::<ReserveEntry>()).unwrap();
         let header = Header {
             off_dt_struct: off_struct.into(),
             size_dt_struct: 0.into(),
@@ -450,8 +539,8 @@ mod tests {
     fn test_accessor_methods() {
         let header = valid_header();
         assert_eq!(header.magic(), MAGIC);
-        assert_eq!(header.total_size(), usize::cast_from(128_u32));
-        assert_eq!(header.version(), 17);
+        assert_eq!(header.total_size(), 104);
+        assert_eq!(header.version(), VERSION);
         assert_eq!(header.last_compatible_version(), LAST_COMPATIBLE_VERSION);
         assert_eq!(header.boot_cpuid_phys(), 0);
     }

@@ -1,6 +1,6 @@
 use crate::token_cursor::error::ReadTokenError;
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum ReadTreeErrorKind {
     #[display("failed to read DTB token")]

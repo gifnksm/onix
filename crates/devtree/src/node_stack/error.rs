@@ -1,12 +1,3 @@
-use core::fmt;
-
-#[derive(Debug)]
+#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[display("stack overflow")]
 pub struct StackOverflowError;
-
-impl fmt::Display for StackOverflowError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "stack overflow")
-    }
-}
-
-impl core::error::Error for StackOverflowError {}

@@ -3,7 +3,8 @@ use core::{ops::Range, ptr};
 
 use devtree::{
     Devicetree,
-    types::{ByteStr, ByteString, property::U32Array},
+    model::property::U32Array,
+    types::{ByteStr, ByteString},
 };
 use platform_cast::CastFrom as _;
 use snafu::ResultExt as _;

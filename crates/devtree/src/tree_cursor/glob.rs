@@ -68,7 +68,7 @@ impl AsRef<Glob> for str {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::IsVariant)]
 pub enum GlobComponent<'glob> {
     RootNode,
     Wildcard,
@@ -209,6 +209,7 @@ fn prev_separator(value: &[u8], end: usize) -> Option<usize> {
     value[..end].iter().rposition(|&b| b == PATH_SEPARATOR)
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
     extern crate alloc;

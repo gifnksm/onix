@@ -1,3 +1,5 @@
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+#![cfg_attr(coverage_nightly, coverage(off))]
 #![cfg(test)]
 
 use devtree::{Devicetree, tree_cursor::TreeCursor as _};

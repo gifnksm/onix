@@ -1,7 +1,5 @@
 pub use self::{devicetree::*, header::*, item::*, node::*, property::*, reserved_memory::*};
 
-#[cfg(feature = "alloc")]
-mod alloc;
 mod devicetree;
 pub mod error;
 mod header;

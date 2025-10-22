@@ -3,10 +3,10 @@ use core::str::Utf8Error;
 use crate::{
     blob::{Node, Property},
     tree_cursor::error::ReadTreeError,
-    types::property::Phandle,
+    model::property::Phandle,
 };
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum DeserializeErrorKind {
     #[display("failed to read devicetree")]
@@ -79,7 +79,7 @@ impl DeserializeError {
     }
 }
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum DeserializePropertyErrorKind {
     #[display("expected value length is {expected}, got {actual}")]
@@ -141,7 +141,7 @@ impl DeserializePropertyError {
     }
 }
 
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum DeserializeNodeErrorKind {
     #[display("missing property: `{property_name}`")]

@@ -3,9 +3,10 @@ use core::ops::Range;
 
 use devtree::{
     DeserializeNode, Devicetree,
+    model::property::Reg,
     tree_cursor::{TreeCursor as _, TreeIterator as _},
-    types::property::Reg,
 };
+use platform_cast::CastFrom as _;
 use range_set::RangeSet;
 use snafu::ResultExt as _;
 use sv39::MapPageFlags;
@@ -80,7 +81,8 @@ impl HeapLayout {
         }
 
         for rsv in dt.memory_reservation_map() {
-            available_ranges.remove(rsv.address_range());
+            let range = rsv.address_range();
+            available_ranges.remove(usize::cast_from(range.start)..usize::cast_from(range.end));
         }
 
         let mut cursor = dt

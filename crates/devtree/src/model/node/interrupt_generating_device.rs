@@ -4,24 +4,57 @@ use alloc::vec::Vec;
 
 use devtree_derive::DeserializeNode;
 
+use super::NodePath;
 use crate::{
     de::{
         DeserializeNode, DeserializeProperty as _, NodeDeserializer, PropertyDeserializer as _,
         error::{DeserializeError, DeserializeNodeError, DeserializePropertyError},
     },
-    tree_cursor::{TreeCursor as _, TreeCursorAllocExt as _},
-    types::{
-        node::{Interrupt, InterruptGeneratingDevice, NodePath},
-        property::{InterruptCells, Phandle, U32Array},
-    },
+    model::property::{InterruptCells, Phandle, U32Array},
+    tree_cursor::TreeCursor as _,
+    types::{ByteStr, ByteString},
 };
 
-impl<'blob> DeserializeNode<'blob> for NodePath {
-    fn deserialize_node<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
-    where
-        D: NodeDeserializer<'de, 'blob> + ?Sized,
-    {
-        Ok(Self::new(de.tree_cursor().path()))
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Interrupt<'blob> {
+    parent_path: ByteString,
+    specifier: &'blob U32Array,
+}
+
+impl<'blob> Interrupt<'blob> {
+    #[must_use]
+    pub fn new(parent_path: ByteString, specifier: &'blob U32Array) -> Self {
+        Self {
+            parent_path,
+            specifier,
+        }
+    }
+
+    #[must_use]
+    pub fn parent_path(&self) -> &ByteStr {
+        self.parent_path.as_ref()
+    }
+
+    #[must_use]
+    pub fn specifier(&self) -> &U32Array {
+        self.specifier
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct InterruptGeneratingDevice<'blob> {
+    interrupts: Vec<Interrupt<'blob>>,
+}
+
+impl<'blob> InterruptGeneratingDevice<'blob> {
+    #[must_use]
+    pub fn new(interrupts: Vec<Interrupt<'blob>>) -> Self {
+        Self { interrupts }
+    }
+
+    #[must_use]
+    pub fn interrupts(&self) -> &[Interrupt<'blob>] {
+        &self.interrupts
     }
 }
 

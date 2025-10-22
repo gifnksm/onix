@@ -3,8 +3,8 @@ use alloc::vec::Vec;
 use devtree::{
     DeserializeNode, Devicetree,
     de::util,
+    model::property::Reg,
     tree_cursor::{TreeCursor as _, TreeIterator as _},
-    types::property::Reg,
 };
 use snafu::{OptionExt as _, ResultExt as _};
 

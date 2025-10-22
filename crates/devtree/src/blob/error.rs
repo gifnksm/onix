@@ -1,7 +1,7 @@
 use core::ops::Range;
 
 /// The kinds of errors that can occur when reading a devicetree blob.
-#[derive(Debug, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]
 #[non_exhaustive]
 pub enum ReadDevicetreeErrorKind {
     #[display(

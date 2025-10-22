@@ -42,7 +42,7 @@ mod sgen;
 ///     the leading `'`. For example:
 ///
 ///     ```rust
-///     use devtree::{DeserializeNode, types::property::Model};
+///     use devtree::{DeserializeNode, model::property::Model};
 ///
 ///     #[derive(DeserializeNode)]
 ///     #[devtree(blob_lifetime = "'dt")]
@@ -176,9 +176,9 @@ mod sgen;
 ///     NodeContext<'_, 'blob>) -> Result<T, DeserializeError>` where `T` is
 ///     field type.
 ///
-/// [`NodeFullName`]: ::devtree::types::node::NodeFullName
-/// [`NodeName`]: ::devtree::types::node::NodeName
-/// [`NodeUnitAddress`]: ::devtree::types::node::NodeUnitAddress
+/// [`NodeFullName`]: ::devtree::model::node::NodeFullName
+/// [`NodeName`]: ::devtree::model::node::NodeName
+/// [`NodeUnitAddress`]: ::devtree::model::node::NodeUnitAddress
 /// [`DeserializeProperty`]: ::devtree::de::DeserializeProperty
 /// [`DeserializeProperty::deserialize_property`]: ::devtree::de::DeserializeProperty::deserialize_property
 /// [`PropertyCollection`]: ::devtree::de::PropertyCollection
@@ -207,11 +207,11 @@ mod sgen;
 /// use devtree::{
 ///     DeserializeNode,
 ///     de::util,
-///     types::{
-///         ByteStr,
+///     model::{
 ///         node::{NodeFullName, NodeUnitAddress},
 ///         property::{AddressCells, Compatible, Model, Ranges, Reg, SizeCells, Status},
 ///     },
+///     types::ByteStr,
 /// };
 ///
 /// // Root node demonstrating top-level properties and child nodes.

@@ -14,11 +14,11 @@ use std::collections::BTreeMap;
 use devtree::{
     DeserializeNode,
     de::util,
-    types::{
-        ByteStr,
+    model::{
         node::{NodeFullName, NodeUnitAddress},
         property::{AddressCells, Compatible, Model, PropertyName, Ranges, Reg, SizeCells, Status},
     },
+    types::ByteStr,
 };
 
 // Root node demonstrating top-level properties and child nodes.

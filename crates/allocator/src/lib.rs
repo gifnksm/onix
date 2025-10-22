@@ -141,7 +141,8 @@
 //! }
 //! ```
 
-#![cfg_attr(not(test), no_std)]
+#![no_std]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 pub mod fixed_size_block;
 pub mod linked_list;

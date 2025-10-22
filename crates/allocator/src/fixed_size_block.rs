@@ -277,8 +277,13 @@ impl FixedSizeBlockAllocator {
     }
 }
 
+#[cfg_attr(coverage_nightly, coverage(off))]
 #[cfg(test)]
 mod tests {
+    extern crate alloc;
+
+    use alloc::vec::Vec;
+
     use super::*;
 
     struct TestAllocator {
@@ -323,10 +328,10 @@ mod tests {
     {
         unsafe {
             let layout = Layout::from_size_align(heap_size, 16).unwrap();
-            let heap_start = std::alloc::alloc(layout);
+            let heap_start = alloc::alloc::alloc(layout);
             heap_start.write_bytes(0x11, heap_size);
             test_fn(heap_start, heap_size);
-            std::alloc::dealloc(heap_start, layout);
+            alloc::alloc::dealloc(heap_start, layout);
         }
     }
 

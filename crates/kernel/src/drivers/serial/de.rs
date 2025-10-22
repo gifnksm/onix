@@ -3,7 +3,7 @@ use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use devtree::{
     DeserializeNode, Devicetree,
     tree_cursor::{TreeCursor as _, TreeIterator as _},
-    types::{
+    model::{
         node::{Interrupt, InterruptGeneratingDevice, NodePath},
         property::{Compatible, Reg},
     },
