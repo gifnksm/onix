@@ -10,8 +10,8 @@ use argh::FromArgs;
 use devtree::{
     Devicetree,
     blob::Node,
-    tree_cursor::{TreeCursor, TreeCursorAllocExt as _, TreeIterator as _},
     model::property::Phandle,
+    tree_cursor::{TreeCursor, TreeCursorAllocExt as _, TreeIterator as _},
 };
 use snafu::ResultExt as _;
 use snafu_utils::{GenericError, Report};

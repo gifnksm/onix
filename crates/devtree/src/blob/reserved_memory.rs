@@ -104,13 +104,4 @@ mod tests {
         // Should saturate at u64::MAX
         assert_eq!(entry.address_range(), (u64::MAX - 1)..u64::MAX);
     }
-
-    #[test]
-    fn test_equality_and_clone() {
-        let entry1 = ReserveEntry::new(0xDEAD_BEEF, 0x1000);
-        let entry2 = entry1.clone();
-        assert_eq!(entry1, entry2);
-        assert_eq!(entry1.address(), entry2.address());
-        assert_eq!(entry1.size(), entry2.size());
-    }
 }

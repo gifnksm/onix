@@ -2,8 +2,8 @@ use core::str::Utf8Error;
 
 use crate::{
     blob::{Node, Property},
-    tree_cursor::error::ReadTreeError,
     model::property::Phandle,
+    tree_cursor::error::ReadTreeError,
 };
 
 #[derive(Debug, derive_more::Display, derive_more::Error, derive_more::IsVariant)]

@@ -32,7 +32,7 @@ impl Instant {
     }
 
     pub fn duration_since(&self, earlier: Self) -> Duration {
-        self.0 - earlier.0
+        self.0.checked_sub(earlier.0).unwrap()
     }
 
     pub fn from_timer_ticks(timer_ticks: u64, timer_frequency: u64) -> Self {

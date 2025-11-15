@@ -15,7 +15,7 @@ pub fn apply() {
     }
 
     let mut stvec = Stvec::from_bits(0);
-    stvec.set_address(kernel_vec as usize);
+    stvec.set_address((kernel_vec as *const ()).expose_provenance());
     stvec.set_trap_mode(TrapMode::Direct);
     unsafe {
         stvec::write(stvec);

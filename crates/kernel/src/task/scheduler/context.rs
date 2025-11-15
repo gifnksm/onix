@@ -31,7 +31,7 @@ impl Context {
         arg: *mut c_void,
     ) -> Self {
         let mut context = Self::zeroed();
-        context.ra = task_entry as usize;
+        context.ra = (task_entry as *const ()).expose_provenance();
         context.sp = stack.top();
         context.s1 = entry as usize;
         context.s2 = arg as usize;

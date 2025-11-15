@@ -2,11 +2,11 @@ use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
 use devtree::{
     DeserializeNode, Devicetree,
-    tree_cursor::{TreeCursor as _, TreeIterator as _},
     model::{
         node::{Interrupt, InterruptGeneratingDevice, NodePath},
         property::{Compatible, Reg},
     },
+    tree_cursor::{TreeCursor as _, TreeIterator as _},
 };
 use snafu::{OptionExt as _, ResultExt as _, whatever};
 
