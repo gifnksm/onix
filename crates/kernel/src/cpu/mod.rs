@@ -2,6 +2,7 @@ use alloc::{slice, vec::Vec};
 use core::{
     fmt,
     iter::{FusedIterator, Peekable},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use devtree::Devicetree;
@@ -41,6 +42,7 @@ impl Cpuid {
 pub struct Cpu {
     id: Cpuid,
     timer_frequency: u64,
+    online: AtomicBool,
 }
 
 unsafe impl Send for Cpu {}
@@ -53,6 +55,10 @@ impl Cpu {
 
     pub fn timer_frequency(&self) -> u64 {
         self.timer_frequency
+    }
+
+    pub fn is_online(&self) -> bool {
+        self.online.load(Ordering::Acquire)
     }
 
     pub fn is_current(&self) -> bool {
@@ -80,6 +86,7 @@ pub fn set_current_cpuid(cpuid: Cpuid) {
         .iter()
         .find(|cpu| cpu.id() == cpuid)
         .unwrap();
+    cpu.online.store(true, Ordering::Release);
     CURRENT_CPU.get().call_once(|| cpu);
 }
 
@@ -128,7 +135,7 @@ impl Iterator for RemoteCpuMaskIter {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let base_cpu = self.cpus.next()?;
-            if base_cpu.id() == self.current_cpuid {
+            if !base_cpu.is_online() || base_cpu.id() == self.current_cpuid {
                 continue;
             }
 
@@ -138,7 +145,7 @@ impl Iterator for RemoteCpuMaskIter {
                 .cpus
                 .next_if(|cpu| cpu.id().value() - base < usize::cast_from(usize::BITS))
             {
-                if cpu.id() != self.current_cpuid {
+                if cpu.is_online() && cpu.id() != self.current_cpuid {
                     mask |= 1 << (cpu.id().value() - base);
                 }
             }

@@ -44,6 +44,7 @@ pub fn deserialize(dt: &Devicetree) -> Result<Vec<Cpu>, GenericError> {
         let cpu = Cpu {
             id: Cpuid::from_raw(reg.range().start),
             timer_frequency: timebase_frequency,
+            online: false.into(),
         };
         all_cpus.push(cpu);
     }
