@@ -129,7 +129,7 @@ pub fn identity_map_range(range: Range<usize>, flags: MapPageFlags) -> Result<()
     kpgtbl
         .identity_map_range(range.clone(), flags)
         .with_whatever_context(|_| {
-            format!("failed to update kernel page table, range={range:#x?}, flags={flags:?}",)
+            format!("failed to update kernel page table, range={range:#x?}, flags={flags:?}")
         })?;
     kpgtbl.unlock();
 

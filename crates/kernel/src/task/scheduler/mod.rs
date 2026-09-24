@@ -82,8 +82,9 @@ pub fn start() -> ! {
 
             sched_state.set_current_task(Some(Arc::clone(&task)));
 
-            // Interrupt state is a property of this kernel thread, not this CPU,
-            // but the state is saved per CPU. so we need to restore it manually.
+            // Interrupt state is a property of this kernel thread, not this
+            // CPU, but the state is saved per CPU. so we need to
+            // restore it manually.
             let int_state = interrupt::save_state();
             unsafe {
                 context::switch(sched_state.context.get(), &raw const shared.sched_context);

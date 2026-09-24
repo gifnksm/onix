@@ -85,7 +85,7 @@ fn panic(info: &PanicInfo) -> ! {
     let _ = writeln!(console, "  {cpuid}");
     let _ = writeln!(console);
     let _ = writeln!(console, "Task:");
-    let _ = writeln!(console, "  {taskid}",);
+    let _ = writeln!(console, "  {taskid}");
     let _ = writeln!(console);
     let _ = writeln!(console, "Location:");
     let _ = writeln!(console, "  {loc}");

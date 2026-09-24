@@ -527,8 +527,8 @@ impl LinkedListAllocator {
                 return;
             }
 
-            // Find the correct position to insert the free node (keeping list sorted by
-            // address)
+            // Find the correct position to insert the free node (keeping list
+            // sorted by address)
             let mut current_node = self.free_list_head;
             loop {
                 assert!(current_node < free_node);

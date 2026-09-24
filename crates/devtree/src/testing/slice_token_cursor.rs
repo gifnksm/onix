@@ -108,7 +108,8 @@ mod tests {
         let tokens = &[Token::BeginNode(node1.clone())];
 
         let cursor = SliceTokenCursor::new(tokens);
-        // make_node_handle uses unwrap() internally; it should panic for missing node
+        // make_node_handle uses unwrap() internally; it should panic for
+        // missing node
         let _ = cursor.make_node_handle(&missing);
     }
 

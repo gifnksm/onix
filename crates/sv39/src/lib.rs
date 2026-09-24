@@ -252,10 +252,10 @@ impl fmt::Debug for DumpState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { va: _, pa, flags } = *self;
         let Some((min_pa, max_pa)) = pa else {
-            return write!(f, "[invalid]",);
+            return write!(f, "[invalid]");
         };
         let flags = DebugFlags(flags);
-        write!(f, "{min_pa:#p}..={max_pa:#p} ({flags:?})",)
+        write!(f, "{min_pa:#p}..={max_pa:#p} ({flags:?})")
     }
 }
 

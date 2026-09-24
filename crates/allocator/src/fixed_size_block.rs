@@ -455,7 +455,8 @@ mod tests {
     #[test]
     fn test_arena_allocation() {
         with_test_allocator(16384, |allocator| unsafe {
-            // Allocate many blocks of the same size to trigger new arena allocation
+            // Allocate many blocks of the same size to trigger new arena
+            // allocation
             let layout = Layout::from_size_align(64, 1).unwrap();
             let mut ptrs = Vec::new();
 

@@ -109,8 +109,8 @@ fn search_blob_by_glob(args: &Args, path: &Path) -> Result<(), GenericError> {
         let mut index = 0_usize..;
 
         // Do NOT swap the order of zip here!
-        // If you change the order, the index will advance even when iter does not yield
-        // a node, leading to incorrect match counts.
+        // If you change the order, the index will advance even when iter does
+        // not yield a node, leading to incorrect match counts.
         while let Some((node, i)) = iter::zip(iter.by_ref(), index.by_ref()).next() {
             let node = node.whatever_context("failed to read devicetree blob")?;
             println!("[{i}]: {}", PrintNode::new(args, &node, iter.tree_cursor()));

@@ -32,7 +32,6 @@ pub trait TreeCursor<'blob>: Sized {
     where
         Self: 'tc;
 
-    #[must_use]
     fn parents(&self) -> Self::Parents<'_>;
 
     fn reset(&mut self);

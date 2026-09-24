@@ -192,7 +192,7 @@ impl<const CAP: usize> RangeSet<CAP> {
         if inserted {
             self.ranges.extend(ranges);
         } else {
-            assert!(ranges.as_slice().is_empty());
+            assert_eq!(ranges.as_slice(), []);
             self.ranges.push(ir);
         }
     }
