@@ -136,7 +136,7 @@ where
         match self.args.print {
             Print::FullName => fmt::Debug::fmt(&self.node.full_name(), f),
             Print::Path => fmt::Debug::fmt(&self.tree_cursor.path(), f),
-            Print::Tree => write!(f, "{:#?}", &self.tree_cursor.clone().debug_tree()),
+            Print::Tree => write!(f, "{:#?}", self.tree_cursor.clone().debug_tree()),
         }
     }
 }

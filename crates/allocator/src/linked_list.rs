@@ -769,7 +769,7 @@ mod tests {
                 ptrs.push(ptr);
             }
 
-            assert!(!ptrs.is_empty());
+            assert_ne!(ptrs, []);
 
             // Deallocate all
             for ptr in ptrs {

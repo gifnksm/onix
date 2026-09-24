@@ -292,7 +292,7 @@ mod tests {
         let header = valid_header();
         let bytes = header.as_bytes();
         let (chunks, rest) = bytes.as_chunks::<4>();
-        assert!(rest.is_empty());
+        assert_eq!(rest, []);
 
         assert_eq!(u32::from_be_bytes(chunks[0]), header.magic.read());
         assert_eq!(u32::from_be_bytes(chunks[1]), header.total_size.read());

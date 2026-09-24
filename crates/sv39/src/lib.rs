@@ -1,4 +1,4 @@
-#![feature(allocator_api)]
+#![feature(allocator_ext)]
 #![feature(error_generic_member_access)]
 #![no_std]
 

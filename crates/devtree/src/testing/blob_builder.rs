@@ -142,9 +142,9 @@ mod tests {
         assert_eq!(builder.version, VERSION);
         assert_eq!(builder.last_compatible_version, LAST_COMPATIBLE_VERSION);
         assert_eq!(builder.boot_cpuid_phys, 0);
-        assert!(builder.mem_rsvmap.is_empty());
-        assert!(builder.struct_block.is_empty());
-        assert!(builder.strings_block.is_empty());
+        assert_eq!(builder.mem_rsvmap, []);
+        assert_eq!(builder.struct_block, []);
+        assert_eq!(builder.strings_block, []);
     }
 
     #[test]

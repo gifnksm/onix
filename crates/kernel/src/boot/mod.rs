@@ -48,7 +48,6 @@ unsafe extern "C" fn primary_cpu_reentry() -> ! {
     crate::main(true)
         .whatever_context("kernel main thread panicked")
         .unwrap_or_else(|e: GenericError| error::report(e));
-    unreachable!();
 }
 
 static CPU_STARTED: AtomicBool = AtomicBool::new(false);
@@ -80,5 +79,4 @@ unsafe extern "C" fn secondary_cpu_reentry() -> ! {
     crate::main(false)
         .whatever_context("kernel main thread panicked")
         .unwrap_or_else(|e: GenericError| error::report(e));
-    unreachable!();
 }

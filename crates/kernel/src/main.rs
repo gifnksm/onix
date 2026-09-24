@@ -1,5 +1,3 @@
-#![feature(allocator_api)]
-#![feature(error_generic_member_access)]
 #![no_std]
 #![no_main]
 

@@ -60,7 +60,7 @@ fn find_plic_source(interrupts: &[Interrupt]) -> Result<(Arc<Plic>, PlicSource),
         let source = plic.translate_interrupt_specifier(interrupt.specifier());
         return Ok((plic, source));
     }
-    whatever!("no plic device found")
+    whatever!("no plic device found");
 }
 
 impl SerialDevice {

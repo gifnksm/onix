@@ -470,7 +470,7 @@ mod tests {
             }
 
             // At least one allocation should succeed
-            assert!(!ptrs.is_empty());
+            assert_ne!(ptrs, []);
 
             // Deallocate all
             for ptr in ptrs {
@@ -580,7 +580,7 @@ mod tests {
                 }
             }
 
-            assert!(!ptrs.is_empty());
+            assert_ne!(ptrs, []);
 
             // Deallocate all
             for ptr in ptrs {
