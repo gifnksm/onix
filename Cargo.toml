@@ -132,9 +132,9 @@ useless_let_if_seq = "warn"
 cargo = { level = "warn", priority = -1 }
 
 [workspace.lints.rust]
-deprecated-safe = "warn"
-future-incompatible = "warn"
-nonstandard-style = "warn"
+deprecated_safe = "warn"
+future_incompatible = "warn"
+nonstandard_style = "warn"
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(coverage,coverage_nightly)"] }
 unused = "warn"
 
