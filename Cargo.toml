@@ -15,13 +15,13 @@ publish = false
 [workspace.dependencies]
 allocator = { path = "crates/allocator" }
 ansi-term = { path = "crates/ansi-term" }
-argh = "0.1.13"
-arrayvec = { version = "0.7.6", default-features = false }
-bitflags = "2.9.4"
-bstr = { version = "1.12.0", default-features = false }
-cfg-if = "1.0.3"
-dataview = "1.0.1"
-derive_more = { version = "2.0.1", default-features = false, features = ["debug", "display", "error", "from", "is_variant"] }
+argh = "0.1.19"
+arrayvec = { version = "0.7.8", default-features = false }
+bitflags = "2.13.2"
+bstr = { version = "1.13.1", default-features = false }
+cfg-if = "1.0.5"
+dataview = "1.1.0"
+derive_more = { version = "2.1.1", default-features = false, features = ["debug", "display", "error", "from", "is_variant"] }
 devtree = { path = "crates/devtree", features = ["alloc", "error-with-location", "unstable-provider-api"] }
 devtree-derive = { path = "crates/devtree-derive", version = "0.1.0" }
 endian = { path = "crates/endian" }
@@ -33,7 +33,7 @@ sbi = { path = "crates/sbi" }
 sbi-sys = { path = "crates/sbi-sys" }
 snafu = { version = "0.8.9", default-features = false, features = ["alloc", "rust_1_81", "unstable-provider-api"] }
 snafu-utils = { path = "crates/snafu-utils" }
-spin = "0.10.0"
+spin = "0.10.1"
 sv39 = { path = "crates/sv39" }
 
 [workspace.lints.clippy]
