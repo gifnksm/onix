@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
-use core::{alloc::Layout, arch::asm, ptr};
+use core::{alloc::Layout, ptr};
 
 use spin::Once;
 
 use crate::cpu::{self, Cpuid};
+
+mod imp;
 
 macro_rules! cpu_local {
     () => {};
@@ -41,7 +43,7 @@ impl<T> CpuLocal<T> {
     }
 
     pub fn try_get(&self) -> Option<&T> {
-        let tp = get_thread_pointer();
+        let tp = imp::get_thread_pointer();
         if tp.is_null() {
             return None;
         }
@@ -56,20 +58,6 @@ impl<T> CpuLocal<T> {
                 .unwrap()
         };
         Some(data)
-    }
-}
-
-fn get_thread_pointer() -> *mut u8 {
-    let tp: *mut u8;
-    unsafe {
-        asm!("mv {0}, tp", out(reg) tp);
-    }
-    tp
-}
-
-fn set_thread_pointer(tp: *mut u8) {
-    unsafe {
-        asm!("mv tp, {0}", in(reg) tp);
     }
 }
 
@@ -107,12 +95,16 @@ pub fn init() {
 }
 
 pub fn apply(cpuid: Cpuid) {
-    assert!(get_thread_pointer().is_null(), "{:p}", get_thread_pointer());
+    assert!(
+        imp::get_thread_pointer().is_null(),
+        "{:p}",
+        imp::get_thread_pointer()
+    );
     let arena = ARENAS
         .get()
         .unwrap()
         .iter()
         .find(|arena| arena.cpuid == cpuid)
         .unwrap();
-    set_thread_pointer(arena.arena);
+    imp::set_thread_pointer(arena.arena);
 }
