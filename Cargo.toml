@@ -19,7 +19,6 @@ argh = "0.1.19"
 arrayvec = { version = "0.7.8", default-features = false }
 bitflags = "2.13.2"
 bstr = { version = "1.13.1", default-features = false }
-cfg-if = "1.0.5"
 dataview = "1.1.0"
 derive_more = { version = "2.1.1", default-features = false, features = ["debug", "display", "error", "from", "is_variant"] }
 devtree = { path = "crates/devtree", features = ["alloc", "error-with-location", "unstable-provider-api"] }

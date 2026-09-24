@@ -18,7 +18,6 @@ test = false
 allocator.workspace = true
 ansi-term.workspace = true
 bitflags.workspace = true
-cfg-if.workspace = true
 dataview.workspace = true
 derive_more = { workspace = true, features = ["debug"] }
 devtree.workspace = true

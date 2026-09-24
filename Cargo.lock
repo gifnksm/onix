@@ -64,12 +64,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cfg-if"
-version = "1.0.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
-
-[[package]]
 name = "convert_case"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -215,7 +209,6 @@ dependencies = [
  "allocator",
  "ansi-term",
  "bitflags",
- "cfg-if",
  "dataview",
  "derive_more",
  "devtree",
@@ -315,9 +308,6 @@ checksum = "d3f2ad9f15a07f4a0e1677124f9120ce7e83ab7e1ca7186af0ca9da529b62e80"
 [[package]]
 name = "riscv-utils"
 version = "0.1.0"
-dependencies = [
- "cfg-if",
-]
 
 [[package]]
 name = "rustc_version"
