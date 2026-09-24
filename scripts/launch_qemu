@@ -10,8 +10,13 @@ QEMU="${QEMU:-qemu-system-riscv64}"
 CPUS="${CPUS:-4}"
 MEM="${MEM:-4G}"
 
+MACHINE_TYPE="${MACHINE_TYPE:-virt}"
+if [[ -n "${MACHINE_OPTIONS:-}" ]]; then
+    MACHINE_TYPE="${MACHINE_TYPE},${MACHINE_OPTIONS}"
+fi
+
 "${QEMU}" \
-    -machine virt \
+    -machine ${MACHINE_TYPE} \
     -bios default \
     -smp "${CPUS}" \
     -m "${MEM}" \

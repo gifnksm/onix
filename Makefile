@@ -91,6 +91,11 @@ clippy-native:
 run:
 	cargo run -p kernel $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS) -- $(QEMU_RUN_FLAGS)
 
+## Dump devicetree
+.PHONY: dtb
+dtb:
+	MACHINE_OPTIONS=dumpdtb=target/virt.dtb cargo run -p kernel $(CARGO_BUILD_FLAGS) $(CARGO_CROSS_FLAGS) $(CARGO_PROFILE_FLAGS) -- $(QEMU_RUN_FLAGS)
+
 ## Test the project
 .PHONY: test
 test:
