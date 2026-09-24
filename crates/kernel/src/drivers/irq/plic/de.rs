@@ -38,8 +38,11 @@ pub fn deserialize(dt: &Devicetree) -> Result<Vec<Arc<Plic>>, GenericError> {
     let mut cursor = dt
         .tree_cursor()
         .whatever_context("failed to create tree cursor")?;
+    // FIXME: This currently depends on the devicetree node name. Node names
+    // changed from `plic@...` to `interrupt-controller@...`, so this should be
+    // matched by `compatible` instead.
     let iter = cursor
-        .read_descendant_nodes_by_glob("/soc/plic")
+        .read_descendant_nodes_by_glob("/soc/interrupt-controller")
         .deserialize_node::<PlicNode>();
     for plic_node in iter {
         let plic_node =
