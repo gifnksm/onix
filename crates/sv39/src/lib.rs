@@ -36,7 +36,7 @@ const _: () = assert!(PAGE_SIZE == 1 << PAGE_SHIFT);
 #[snafu(module)]
 pub enum PageTableError {
     #[snafu(display("failed to allocate new page table"))]
-    #[snafu(provide(ref, priority, Location => location.0))]
+    #[snafu(provide(ref, Location => location.0))]
     AllocPageTable {
         #[snafu(source)]
         source: AllocError,
@@ -44,7 +44,7 @@ pub enum PageTableError {
         location: LocationWrap,
     },
     #[snafu(display("failed to allocate new page table entry, layout: {layout:?}"))]
-    #[snafu(provide(ref, priority, Location => location.0))]
+    #[snafu(provide(ref, Location => location.0))]
     AllocPage {
         layout: Layout,
         #[snafu(implicit)]
@@ -53,14 +53,14 @@ pub enum PageTableError {
     #[snafu(display(
         "attempted to map a page to an already mapped address, phys_page_num: {phys_page_num:#x}"
     ))]
-    #[snafu(provide(ref, priority, Location => location.0))]
+    #[snafu(provide(ref, Location => location.0))]
     AlreadyMapped {
         phys_page_num: PhysPageNum,
         #[snafu(implicit)]
         location: LocationWrap,
     },
     #[snafu(display("invalid flags for mapping page: {flags:?}"))]
-    #[snafu(provide(ref, priority, Location => location.0))]
+    #[snafu(provide(ref, Location => location.0))]
     InvalidMapFlags {
         flags: MapPageFlags,
         #[snafu(implicit)]

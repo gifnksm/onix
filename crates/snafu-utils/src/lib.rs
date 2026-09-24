@@ -44,14 +44,12 @@ impl fmt::Display for LocationWrap {
 
 #[derive(Debug, Snafu)]
 #[snafu(whatever, display("{message}"))]
-#[snafu(provide(ref, priority, Location => location.0))]
-#[snafu(provide(opt, ref, chain, dyn core::error::Error => source.as_deref()))]
+#[snafu(provide(ref, Location => location.0))]
 pub struct GenericError {
     message: String,
     #[snafu(implicit)]
     location: LocationWrap,
     #[snafu(source(from(Box<dyn core::error::Error>, Some)))]
-    #[snafu(provide(false))]
     source: Option<Box<dyn core::error::Error>>,
 }
 
