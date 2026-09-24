@@ -156,9 +156,10 @@ impl Builder {
         let found = self.generics.lifetimes().any(|lt| lt.lifetime == *lt_blob);
         let new_generics = (!found).then(|| {
             let mut generics = self.generics.clone();
-            generics
-                .params
-                .insert(0, syn::LifetimeParam::new(lt_blob.clone()).into());
+            generics.params.insert(
+                0,
+                syn::GenericParam::Lifetime(syn::LifetimeParam::new(lt_blob.clone())),
+            );
             generics
         });
         let (impl_generics, _ty_generics, _where_clause) = new_generics

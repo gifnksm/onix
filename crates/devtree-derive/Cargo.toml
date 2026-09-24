@@ -13,10 +13,10 @@ publish.workspace = true
 proc-macro = true
 
 [dependencies]
-darling = "0.21.3"
+darling = "0.24.1"
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
-syn = "2.0.119"
+syn = "3.0.6"
 
 [dev-dependencies]
 devtree = { workspace = true, features = ["alloc"] }
