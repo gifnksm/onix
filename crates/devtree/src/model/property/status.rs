@@ -1,7 +1,7 @@
 use crate::{
     de::{
         DeserializeProperty, PropertyDeserializer,
-        error::{DeserializeError, DeserializePropertyError},
+        error::{DeserializePropertyError, DeserializeResult},
     },
     types::ByteStr,
 };
@@ -19,7 +19,7 @@ pub enum Status {
 }
 
 impl<'blob> DeserializeProperty<'blob> for Status {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

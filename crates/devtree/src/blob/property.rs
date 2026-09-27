@@ -1,6 +1,6 @@
 use crate::{
     bytes::LazyCStr,
-    de::{DeserializeProperty, PropertyDeserializer, error::DeserializeError},
+    de::{DeserializeProperty, PropertyDeserializer, error::DeserializeResult},
     types::ByteStr,
 };
 
@@ -34,7 +34,7 @@ impl<'blob> Property<'blob> {
 }
 
 impl<'blob> DeserializeProperty<'blob> for Property<'blob> {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

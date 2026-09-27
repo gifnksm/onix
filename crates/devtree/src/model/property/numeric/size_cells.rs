@@ -1,6 +1,6 @@
 use platform_cast::CastFrom as _;
 
-use crate::de::{DeserializeProperty, PropertyDeserializer, error::DeserializeError};
+use crate::de::{DeserializeProperty, PropertyDeserializer, error::DeserializeResult};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SizeCells(u32);
@@ -20,7 +20,7 @@ impl SizeCells {
 forward_numeric_fmt_impls!(SizeCells);
 
 impl<'blob> DeserializeProperty<'blob> for SizeCells {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

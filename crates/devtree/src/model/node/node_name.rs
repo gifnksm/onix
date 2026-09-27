@@ -1,5 +1,5 @@
 use crate::{
-    de::{DeserializeNode, NodeDeserializer, error::DeserializeError},
+    de::{DeserializeNode, NodeDeserializer, error::DeserializeResult},
     types::ByteStr,
 };
 
@@ -19,7 +19,7 @@ impl<'blob> NodeName<'blob> {
 }
 
 impl<'blob> DeserializeNode<'blob> for NodeName<'blob> {
-    fn deserialize_node<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_node<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {

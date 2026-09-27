@@ -1,4 +1,4 @@
-use crate::de::{DeserializeProperty, PropertyDeserializer, error::DeserializeError};
+use crate::de::{DeserializeProperty, PropertyDeserializer, error::DeserializeResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Phandle(u32);
@@ -18,7 +18,7 @@ impl Phandle {
 forward_numeric_fmt_impls!(Phandle);
 
 impl<'blob> DeserializeProperty<'blob> for Phandle {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

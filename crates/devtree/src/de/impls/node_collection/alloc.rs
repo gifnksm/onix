@@ -6,7 +6,7 @@ use alloc::{
 };
 
 use crate::{
-    de::{DeserializeNode, NodeCollection, NodeDeserializer, error::DeserializeError},
+    de::{DeserializeNode, NodeCollection, NodeDeserializer, error::DeserializeResult},
     tree_cursor::TreeCursor as _,
 };
 
@@ -14,7 +14,7 @@ impl<'blob, T> NodeCollection<'blob> for Vec<T>
 where
     T: DeserializeNode<'blob>,
 {
-    fn insert_node<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_node<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
@@ -28,7 +28,7 @@ impl<'blob, T> NodeCollection<'blob> for BTreeSet<T>
 where
     T: DeserializeNode<'blob> + Ord,
 {
-    fn insert_node<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_node<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
@@ -43,7 +43,7 @@ where
     K: DeserializeNode<'blob> + Ord,
     V: DeserializeNode<'blob>,
 {
-    fn insert_node<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_node<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {

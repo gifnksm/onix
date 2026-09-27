@@ -6,14 +6,14 @@ use alloc::{
 };
 
 use crate::de::{
-    DeserializeProperty, PropertyCollection, PropertyDeserializer, error::DeserializeError,
+    DeserializeProperty, PropertyCollection, PropertyDeserializer, error::DeserializeResult,
 };
 
 impl<'blob, T> PropertyCollection<'blob> for Vec<T>
 where
     T: DeserializeProperty<'blob>,
 {
-    fn insert_property<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_property<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -27,7 +27,7 @@ impl<'blob, T> PropertyCollection<'blob> for BTreeSet<T>
 where
     T: DeserializeProperty<'blob> + Ord,
 {
-    fn insert_property<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_property<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -42,7 +42,7 @@ where
     K: DeserializeProperty<'blob> + Ord,
     V: DeserializeProperty<'blob>,
 {
-    fn insert_property<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_property<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

@@ -1,7 +1,7 @@
 use super::DefaultPropertyDeserializer;
 use crate::{
     blob::{Item, Node},
-    de::{ItemDeserializer, NodeDeserializer, error::DeserializeError},
+    de::{ItemDeserializer, NodeDeserializer, error::DeserializeResult},
     tree_cursor::TreeCursor,
 };
 
@@ -49,9 +49,8 @@ where
 
     fn read_item(
         &mut self,
-    ) -> Result<
+    ) -> DeserializeResult<
         Option<ItemDeserializer<Self::PropertyDeserializer<'_>, Self::NodeDeserializer<'_>>>,
-        DeserializeError,
     > {
         let Some(item) = self.cursor.read_item_descend()? else {
             return Ok(None);

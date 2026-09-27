@@ -1,5 +1,5 @@
 use crate::{
-    de::{DeserializeNode, NodeDeserializer, error::DeserializeError},
+    de::{DeserializeNode, NodeDeserializer, error::DeserializeResult},
     tree_cursor::TreeCursorAllocExt as _,
     types::{ByteStr, ByteString},
 };
@@ -20,7 +20,7 @@ impl NodePath {
 }
 
 impl<'blob> DeserializeNode<'blob> for NodePath {
-    fn deserialize_node<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_node<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {

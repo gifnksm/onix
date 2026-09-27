@@ -3,13 +3,11 @@ use platform_cast::CastFrom as _;
 use super::{
     DeserializeNode, DeserializeProperty, NodeDeserializer, PropertyCollection,
     PropertyDeserializer,
-    error::{DeserializeError, DeserializeNodeError, DeserializePropertyError},
+    error::{DeserializeNodeError, DeserializePropertyError, DeserializeResult},
 };
 use crate::{blob::Node, tree_cursor::TreeCursor as _};
 
-pub fn deserialize_property_as_usize_via_u32<'de, 'blob, D>(
-    de: &mut D,
-) -> Result<usize, DeserializeError>
+pub fn deserialize_property_as_usize_via_u32<'de, 'blob, D>(de: &mut D) -> DeserializeResult<usize>
 where
     D: PropertyDeserializer<'de, 'blob>,
 {
@@ -17,7 +15,7 @@ where
     Ok(usize::cast_from(value))
 }
 
-pub fn deserialize_u64_or_u32_property<'de, 'blob, D>(de: &mut D) -> Result<u64, DeserializeError>
+pub fn deserialize_u64_or_u32_property<'de, 'blob, D>(de: &mut D) -> DeserializeResult<u64>
 where
     D: PropertyDeserializer<'de, 'blob>,
 {
@@ -33,9 +31,7 @@ where
     Ok(value)
 }
 
-pub fn deserialize_node_as_property_collection<'de, 'blob, D, T>(
-    de: &mut D,
-) -> Result<T, DeserializeError>
+pub fn deserialize_node_as_property_collection<'de, 'blob, D, T>(de: &mut D) -> DeserializeResult<T>
 where
     D: NodeDeserializer<'de, 'blob>,
     T: PropertyCollection<'blob>,
@@ -59,7 +55,7 @@ pub struct PropertyCell<'blob, T> {
 }
 
 impl<'blob, T> PropertyCell<'blob, T> {
-    pub fn new<'de, D>(de: &D, name: &'static str) -> Result<Self, DeserializeError>
+    pub fn new<'de, D>(de: &D, name: &'static str) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
@@ -75,7 +71,7 @@ impl<'blob, T> PropertyCell<'blob, T> {
         self.value.is_some()
     }
 
-    pub fn set_deserialized<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    pub fn set_deserialized<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         T: DeserializeProperty<'blob>,
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
@@ -85,7 +81,7 @@ impl<'blob, T> PropertyCell<'blob, T> {
         Ok(())
     }
 
-    pub fn set(&mut self, value: T) -> Result<(), DeserializeError> {
+    pub fn set(&mut self, value: T) -> DeserializeResult<()> {
         ensure!(
             self.value.is_none(),
             DeserializeNodeError::duplicated_property(&self.node, self.name)
@@ -94,7 +90,7 @@ impl<'blob, T> PropertyCell<'blob, T> {
         Ok(())
     }
 
-    pub fn finish(self) -> Result<T, DeserializeError> {
+    pub fn finish(self) -> DeserializeResult<T> {
         self.value
             .ok_or_else(|| DeserializeNodeError::missing_property(&self.node, self.name).into())
     }
@@ -122,7 +118,7 @@ pub struct NodeCell<'blob, T> {
 }
 
 impl<'blob, T> NodeCell<'blob, T> {
-    pub fn new<'de, D>(de: &D, name: &'static str) -> Result<Self, DeserializeError>
+    pub fn new<'de, D>(de: &D, name: &'static str) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {
@@ -138,7 +134,7 @@ impl<'blob, T> NodeCell<'blob, T> {
         self.value.is_some()
     }
 
-    pub fn set_deserialized<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    pub fn set_deserialized<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         T: DeserializeNode<'blob>,
         D: NodeDeserializer<'de, 'blob> + ?Sized,
@@ -148,7 +144,7 @@ impl<'blob, T> NodeCell<'blob, T> {
         Ok(())
     }
 
-    pub fn set(&mut self, value: T) -> Result<(), DeserializeError> {
+    pub fn set(&mut self, value: T) -> DeserializeResult<()> {
         ensure!(
             self.value.is_none(),
             DeserializeNodeError::duplicated_child(&self.node, self.name)
@@ -157,7 +153,7 @@ impl<'blob, T> NodeCell<'blob, T> {
         Ok(())
     }
 
-    pub fn finish(self) -> Result<T, DeserializeError> {
+    pub fn finish(self) -> DeserializeResult<T> {
         self.value
             .ok_or_else(|| DeserializeNodeError::missing_child(&self.node, self.name).into())
     }

@@ -3,7 +3,7 @@ use core::fmt;
 use crate::{
     de::{
         DeserializeProperty, PropertyDeserializer,
-        error::{DeserializeError, DeserializePropertyError},
+        error::{DeserializePropertyError, DeserializeResult},
     },
     polyfill,
 };
@@ -32,7 +32,7 @@ impl fmt::Debug for StrList<'_> {
 }
 
 impl<'blob> DeserializeProperty<'blob> for StrList<'blob> {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

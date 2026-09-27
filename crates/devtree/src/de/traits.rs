@@ -1,29 +1,29 @@
-use super::error::DeserializeError;
 use crate::{
     blob::{Node, Property},
+    de::error::{DeserializeError, DeserializeResult},
     tree_cursor::TreeCursor,
 };
 
 pub trait DeserializeProperty<'blob>: Sized {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized;
 }
 
 pub trait DeserializeNode<'blob>: Sized {
-    fn deserialize_node<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_node<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized;
 }
 
 pub trait NodeCollection<'blob>: Default {
-    fn insert_node<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_node<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized;
 }
 
 pub trait PropertyCollection<'blob>: Default {
-    fn insert_property<'de, D>(&mut self, de: &mut D) -> Result<(), DeserializeError>
+    fn insert_property<'de, D>(&mut self, de: &mut D) -> DeserializeResult<()>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized;
 }
@@ -75,7 +75,7 @@ pub trait PropertyDeserializer<'de, 'blob> {
     fn property(&self) -> &Property<'blob>;
     fn tree_cursor(&self) -> &Self::TreeCursor;
 
-    fn clone_tree_cursor(&self) -> Result<Self::TreeCursor, DeserializeError>
+    fn clone_tree_cursor(&self) -> DeserializeResult<Self::TreeCursor>
     where
         Self::TreeCursor: Sized,
     {
@@ -97,7 +97,7 @@ pub trait NodeDeserializer<'de, 'blob> {
     fn node(&self) -> &Node<'blob>;
     fn tree_cursor(&self) -> &Self::TreeCursor;
 
-    fn clone_tree_cursor(&self) -> Result<Self::TreeCursor, DeserializeError>
+    fn clone_tree_cursor(&self) -> DeserializeResult<Self::TreeCursor>
     where
         Self::TreeCursor: Sized,
     {
@@ -108,19 +108,18 @@ pub trait NodeDeserializer<'de, 'blob> {
 
     fn read_item(
         &mut self,
-    ) -> Result<
+    ) -> DeserializeResult<
         Option<ItemDeserializer<Self::PropertyDeserializer<'_>, Self::NodeDeserializer<'_>>>,
-        DeserializeError,
     >;
 
     fn with_items<PH, NH>(
         &mut self,
         mut property_handler: PH,
         mut node_handler: NH,
-    ) -> Result<(), DeserializeError>
+    ) -> DeserializeResult<()>
     where
-        PH: for<'sub_de> FnMut(Self::PropertyDeserializer<'sub_de>) -> Result<(), DeserializeError>,
-        NH: for<'sub_de> FnMut(Self::NodeDeserializer<'sub_de>) -> Result<(), DeserializeError>,
+        PH: for<'sub_de> FnMut(Self::PropertyDeserializer<'sub_de>) -> DeserializeResult<()>,
+        NH: for<'sub_de> FnMut(Self::NodeDeserializer<'sub_de>) -> DeserializeResult<()>,
     {
         while let Some(sub_de) = self.read_item()? {
             match sub_de {
@@ -135,16 +134,16 @@ pub trait NodeDeserializer<'de, 'blob> {
         Ok(())
     }
 
-    fn with_properties<PH>(&mut self, property_handler: PH) -> Result<(), DeserializeError>
+    fn with_properties<PH>(&mut self, property_handler: PH) -> DeserializeResult<()>
     where
-        PH: for<'sub_de> FnMut(Self::PropertyDeserializer<'sub_de>) -> Result<(), DeserializeError>,
+        PH: for<'sub_de> FnMut(Self::PropertyDeserializer<'sub_de>) -> DeserializeResult<()>,
     {
         self.with_items(property_handler, |_| Ok(()))
     }
 
-    fn with_children<NH>(&mut self, node_handler: NH) -> Result<(), DeserializeError>
+    fn with_children<NH>(&mut self, node_handler: NH) -> DeserializeResult<()>
     where
-        NH: for<'sub_de> FnMut(Self::NodeDeserializer<'sub_de>) -> Result<(), DeserializeError>,
+        NH: for<'sub_de> FnMut(Self::NodeDeserializer<'sub_de>) -> DeserializeResult<()>,
     {
         self.with_items(|_| Ok(()), node_handler)
     }

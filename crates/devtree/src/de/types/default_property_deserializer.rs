@@ -1,6 +1,9 @@
 use crate::{
     blob::{Node, Property},
-    de::PropertyDeserializer,
+    de::{
+        PropertyDeserializer,
+        error::{DeserializeError, DeserializeResult},
+    },
     tree_cursor::TreeCursor,
 };
 
@@ -45,12 +48,12 @@ where
         self.cursor
     }
 
-    fn clone_tree_cursor(&self) -> Result<Self::TreeCursor, crate::de::error::DeserializeError>
+    fn clone_tree_cursor(&self) -> DeserializeResult<Self::TreeCursor>
     where
         Self::TreeCursor: Sized,
     {
         self.tree_cursor()
             .try_clone()
-            .ok_or_else(crate::de::error::DeserializeError::clone_not_supported)
+            .ok_or_else(DeserializeError::clone_not_supported)
     }
 }

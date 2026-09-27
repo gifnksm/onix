@@ -5,7 +5,7 @@ use crate::{
     blob::{Item, Node, Property},
     de::{
         DeserializeNode, DeserializeProperty,
-        error::DeserializeError,
+        error::DeserializeResult,
         types::{DefaultNodeDeserializer, DefaultPropertyDeserializer},
     },
     model::property::Phandle,
@@ -254,7 +254,7 @@ where
         DefaultPropertyDeserializer::new(self.property.clone(), self.tree_cursor)
     }
 
-    pub fn deserialize_property<T>(self) -> Result<T, DeserializeError>
+    pub fn deserialize_property<T>(self) -> DeserializeResult<T>
     where
         T: DeserializeProperty<'blob>,
     {
@@ -297,7 +297,7 @@ where
         DefaultNodeDeserializer::new(self.node.clone(), self.tree_cursor)
     }
 
-    pub fn deserialize_node<T>(mut self) -> Result<T, DeserializeError>
+    pub fn deserialize_node<T>(mut self) -> DeserializeResult<T>
     where
         T: DeserializeNode<'blob>,
     {

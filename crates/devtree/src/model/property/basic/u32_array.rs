@@ -1,6 +1,6 @@
 use core::{fmt, ptr};
 
-use crate::de::{DeserializeProperty, PropertyDeserializer, error::DeserializeError};
+use crate::de::{DeserializeProperty, PropertyDeserializer, error::DeserializeResult};
 
 #[repr(transparent)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -40,7 +40,7 @@ impl U32Array {
 }
 
 impl<'blob> DeserializeProperty<'blob> for &'blob U32Array {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

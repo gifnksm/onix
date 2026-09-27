@@ -105,8 +105,8 @@ mod sgen;
 ///   * `default = value` — Use the specified `value` if missing.
 ///   * `deserialize_with = expr` — Use `expr` instead of
 ///     [`DeserializeProperty::deserialize_property`]. The `expr` must be
-///     callable as `fn(&mut PropertyContext<'_, 'blob>) -> Result<T,
-///     DeserializeError>` where `T` is field type.
+///     callable as `fn(&mut PropertyContext<'_, 'blob>) ->
+///     DeserializeResult<T>` where `T` is field type.
 ///
 ///   **Combination behavior:**
 ///
@@ -123,8 +123,8 @@ mod sgen;
 ///
 ///   * `insert_with = expr` — Use `expr` instead of
 ///     [`PropertyCollection::insert_property`]. The `expr` must be callable as
-///     `fn(&mut PropertyContext<'_, 'blob>) -> Result<T, DeserializeError>`
-///     where `T` is field type.
+///     `fn(&mut PropertyContext<'_, 'blob>) -> DeserializeResult<T>` where `T`
+///     is field type.
 ///
 /// ## Child node fields
 ///
@@ -147,8 +147,8 @@ mod sgen;
 ///   * `default` — Use [`Default::default()`] if the node is missing.
 ///   * `deserialize_with = expr` — Use `expr` instead of
 ///     [`DeserializeNode::deserialize_node`]. The `expr` must be callable as
-///     `fn(&mut NodeContext<'_, 'blob>) -> Result<T, DeserializeError>` where
-///     `T` is field type.
+///     `fn(&mut NodeContext<'_, 'blob>) -> DeserializeResult<T>` where `T` is
+///     field type.
 ///
 /// * `#[devtree(repeated_children)]`
 ///
@@ -160,8 +160,8 @@ mod sgen;
 ///   * `name = "..."` — Collect nodes with the specified `"name"`.
 ///   * `insert_with = expr` — Use `expr` instead of
 ///     [`NodeCollection::insert_node`]. The `expr` must be callable as `fn(&mut
-///     NodeContext<'_, 'blob>) -> Result<T, DeserializeError>` where `T` is
-///     field type.
+///     NodeContext<'_, 'blob>) -> DeserializeResult<T>` where `T` is field
+///     type.
 ///
 /// * `#[devtree(extra_children)]`
 ///
@@ -173,8 +173,8 @@ mod sgen;
 ///
 ///   * `insert_with = expr` — Use `expr` instead of
 ///     [`NodeCollection::insert_node`]. The `expr` must be callable as `fn(&mut
-///     NodeContext<'_, 'blob>) -> Result<T, DeserializeError>` where `T` is
-///     field type.
+///     NodeContext<'_, 'blob>) -> DeserializeResult<T>` where `T` is field
+///     type.
 ///
 /// [`NodeFullName`]: ::devtree::model::node::NodeFullName
 /// [`NodeName`]: ::devtree::model::node::NodeName

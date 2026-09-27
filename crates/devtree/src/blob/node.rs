@@ -1,6 +1,6 @@
 use super::UNIT_ADDRESS_SEPARATOR;
 use crate::{
-    de::{DeserializeNode, NodeDeserializer, error::DeserializeError},
+    de::{DeserializeNode, NodeDeserializer, error::DeserializeResult},
     polyfill,
     types::ByteStr,
 };
@@ -49,7 +49,7 @@ impl<'blob> Node<'blob> {
 }
 
 impl<'blob> DeserializeNode<'blob> for Node<'blob> {
-    fn deserialize_node<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_node<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {

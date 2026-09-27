@@ -5,7 +5,7 @@ use devtree_derive::DeserializeNode;
 use crate::{
     de::{
         DeserializeProperty, PropertyDeserializer,
-        error::{DeserializeError, DeserializeNodeError, DeserializePropertyError},
+        error::{DeserializeNodeError, DeserializePropertyError, DeserializeResult},
     },
     model::property::{AddressCells, SizeCells},
     tree_cursor::TreeCursor as _,
@@ -75,7 +75,7 @@ struct RangesNode {
 }
 
 impl<'blob> DeserializeProperty<'blob> for Ranges<'blob> {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {

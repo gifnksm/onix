@@ -5,7 +5,7 @@ use crate::{
     blob::{Item, Node, Property},
     de::{
         DeserializeNode, DeserializeProperty,
-        error::DeserializeError,
+        error::{DeserializeError, DeserializeResult},
         types::{DefaultNodeDeserializer, DefaultPropertyDeserializer},
     },
     tree_cursor::GlobComponent,
@@ -489,7 +489,7 @@ where
         }
     }
 
-    fn try_next(&mut self) -> Result<Option<T>, DeserializeError> {
+    fn try_next(&mut self) -> DeserializeResult<Option<T>> {
         let Some(property) = self.iter.next().transpose()? else {
             return Ok(None);
         };
@@ -504,7 +504,7 @@ where
     I: Iterator<Item = Result<Property<'blob>, ReadTreeError>> + TreeIterator<'blob>,
     <I as TreeIterator<'blob>>::TreeCursor: Sized,
 {
-    type Item = Result<T, DeserializeError>;
+    type Item = DeserializeResult<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.try_next().transpose()
@@ -531,7 +531,7 @@ where
         }
     }
 
-    fn try_next(&mut self) -> Result<Option<T>, DeserializeError> {
+    fn try_next(&mut self) -> DeserializeResult<Option<T>> {
         let Some(node) = self.iter.next().transpose()? else {
             return Ok(None);
         };
@@ -551,7 +551,7 @@ where
     I: Iterator<Item = Result<Node<'blob>, ReadTreeError>> + TreeIterator<'blob>,
     <I as TreeIterator<'blob>>::TreeCursor: Sized,
 {
-    type Item = Result<T, DeserializeError>;
+    type Item = DeserializeResult<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.try_next().transpose()

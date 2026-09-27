@@ -8,7 +8,9 @@ use super::NodePath;
 use crate::{
     de::{
         DeserializeNode, DeserializeProperty as _, NodeDeserializer, PropertyDeserializer as _,
-        error::{DeserializeError, DeserializeNodeError, DeserializePropertyError},
+        error::{
+            DeserializeError, DeserializeNodeError, DeserializePropertyError, DeserializeResult,
+        },
     },
     model::property::{InterruptCells, Phandle, U32Array},
     tree_cursor::TreeCursor as _,
@@ -68,7 +70,7 @@ struct InterruptParentNode {
 }
 
 impl<'blob> DeserializeNode<'blob> for InterruptGeneratingDevice<'blob> {
-    fn deserialize_node<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_node<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: NodeDeserializer<'de, 'blob> + ?Sized,
     {

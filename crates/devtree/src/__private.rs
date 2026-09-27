@@ -4,7 +4,7 @@ pub use crate::{
     de::{
         DeserializeNode, DeserializeProperty, ItemDeserializer, NodeCollection, NodeDeserializer,
         PropertyCollection, PropertyDeserializer,
-        error::DeserializeError,
+        error::DeserializeResult,
         util::{NodeCell, PropertyCell},
     },
     tree_cursor::{TreeCursor, TreeNodeRef},
@@ -21,11 +21,11 @@ pub fn node_de_with_items<'de, 'blob, D, PH, NH>(
     de: &mut D,
     property_handler: PH,
     node_handler: NH,
-) -> Result<(), DeserializeError>
+) -> DeserializeResult<()>
 where
     D: NodeDeserializer<'de, 'blob> + ?Sized,
-    PH: for<'sub_de> FnMut(D::PropertyDeserializer<'sub_de>) -> Result<(), DeserializeError>,
-    NH: for<'sub_de> FnMut(D::NodeDeserializer<'sub_de>) -> Result<(), DeserializeError>,
+    PH: for<'sub_de> FnMut(D::PropertyDeserializer<'sub_de>) -> DeserializeResult<()>,
+    NH: for<'sub_de> FnMut(D::NodeDeserializer<'sub_de>) -> DeserializeResult<()>,
 {
     de.with_items(property_handler, node_handler)
 }

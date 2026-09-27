@@ -38,6 +38,8 @@ define_error!(
     }
 );
 
+pub type DeserializeResult<T> = Result<T, DeserializeError>;
+
 impl From<ReadTreeError> for DeserializeError {
     #[track_caller]
     fn from(source: ReadTreeError) -> Self {

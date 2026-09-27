@@ -169,7 +169,7 @@ impl Builder {
         quote! {
             #[automatically_derived]
             impl #impl_generics #private::DeserializeNode<#lt_blob> for #ident #ty_generics #where_clause {
-                fn deserialize_node<#lt_de, #gp_d>(#var_de: &mut #gp_d) -> #private::Result<Self, #private::DeserializeError>
+                fn deserialize_node<#lt_de, #gp_d>(#var_de: &mut #gp_d) -> #private::DeserializeResult<Self>
                     where
                         #gp_d: #private::NodeDeserializer<#lt_de, #lt_blob> + ?#private::Sized,
                 {

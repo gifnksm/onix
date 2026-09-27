@@ -2,7 +2,7 @@ use crate::{
     blob::Property,
     de::{
         DeserializeProperty, PropertyDeserializer,
-        error::{DeserializeError, DeserializePropertyError},
+        error::{DeserializePropertyError, DeserializeResult},
     },
     polyfill,
     types::ByteStr,
@@ -10,7 +10,7 @@ use crate::{
 
 fn deserialize_byte_str_until_first_nul<'blob>(
     property: &Property<'blob>,
-) -> Result<&'blob [u8], DeserializeError> {
+) -> DeserializeResult<&'blob [u8]> {
     let (bytes, _) = polyfill::slice_split_once(property.value(), |&c| c == 0)
         .ok_or_else(|| DeserializePropertyError::missing_nul_in_string_value(property))?;
     Ok(bytes)
@@ -20,7 +20,7 @@ impl<'blob, T> DeserializeProperty<'blob> for Option<T>
 where
     T: DeserializeProperty<'blob>,
 {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -29,7 +29,7 @@ where
 }
 
 impl<'blob, const N: usize> DeserializeProperty<'blob> for [u8; N] {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -43,7 +43,7 @@ impl<'blob, const N: usize> DeserializeProperty<'blob> for [u8; N] {
 }
 
 impl<'blob> DeserializeProperty<'blob> for &'blob [u8] {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -52,7 +52,7 @@ impl<'blob> DeserializeProperty<'blob> for &'blob [u8] {
 }
 
 impl<'blob, const N: usize> DeserializeProperty<'blob> for &'blob [u8; N] {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -66,7 +66,7 @@ impl<'blob, const N: usize> DeserializeProperty<'blob> for &'blob [u8; N] {
 }
 
 impl<'blob, const N: usize> DeserializeProperty<'blob> for &'blob [[u8; N]] {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -82,7 +82,7 @@ impl<'blob, const N: usize> DeserializeProperty<'blob> for &'blob [[u8; N]] {
 }
 
 impl<'blob> DeserializeProperty<'blob> for () {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -92,7 +92,7 @@ impl<'blob> DeserializeProperty<'blob> for () {
 }
 
 impl<'blob> DeserializeProperty<'blob> for bool {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -102,7 +102,7 @@ impl<'blob> DeserializeProperty<'blob> for bool {
 }
 
 impl<'blob> DeserializeProperty<'blob> for u32 {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -111,7 +111,7 @@ impl<'blob> DeserializeProperty<'blob> for u32 {
 }
 
 impl<'blob> DeserializeProperty<'blob> for u64 {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -120,7 +120,7 @@ impl<'blob> DeserializeProperty<'blob> for u64 {
 }
 
 impl<'blob> DeserializeProperty<'blob> for &'blob str {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
@@ -133,7 +133,7 @@ impl<'blob> DeserializeProperty<'blob> for &'blob str {
 }
 
 impl<'blob> DeserializeProperty<'blob> for &'blob ByteStr {
-    fn deserialize_property<'de, D>(de: &mut D) -> Result<Self, DeserializeError>
+    fn deserialize_property<'de, D>(de: &mut D) -> DeserializeResult<Self>
     where
         D: PropertyDeserializer<'de, 'blob> + ?Sized,
     {
