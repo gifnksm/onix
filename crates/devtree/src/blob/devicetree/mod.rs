@@ -38,6 +38,14 @@ impl fmt::Debug for Devicetree {
 }
 
 impl Devicetree {
+    /// Constructs a `Devicetree` from a pointer.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `ptr` points to a valid device tree blob,
+    /// that the entire blob is readable for the size indicated by its header,
+    /// and that the pointed-to memory remains valid and is not mutably aliased
+    /// for the lifetime of the returned reference.
     pub unsafe fn from_ptr(ptr: *const u8) -> Result<&'static Self, ReadDevicetreeError> {
         let header = unsafe { Header::from_ptr(ptr)? };
         let total_size = header.total_size();
@@ -45,6 +53,7 @@ impl Devicetree {
         Self::from_bytes_internal(bytes, header)
     }
 
+    /// Constructs a `Devicetree` from a byte slice.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self, ReadDevicetreeError> {
         let header = Header::from_bytes(bytes)?;
         let total_size = header.total_size();

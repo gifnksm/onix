@@ -17,6 +17,13 @@ unsafe impl<const ALIGN: usize> Send for AlignedByteBuffer<ALIGN> {}
 unsafe impl<const ALIGN: usize> Sync for AlignedByteBuffer<ALIGN> {}
 
 impl<const ALIGN: usize> AlignedByteBuffer<ALIGN> {
+    /// Creates a new `AlignedByteBuffer` with the specified size, initialized
+    /// to zero.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `ALIGN` is zero or not a power of two, or if the requested
+    /// layout exceeds `isize::MAX`.
     #[must_use]
     pub fn new_zeroed(size: usize) -> Self {
         if size == 0 {
@@ -34,6 +41,13 @@ impl<const ALIGN: usize> AlignedByteBuffer<ALIGN> {
         Self { ptr, size }
     }
 
+    /// Creates a new `AlignedByteBuffer` from a slice of bytes, copying the
+    /// data into the buffer.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `ALIGN` is zero or not a power of two, or if the requested
+    /// layout exceeds `isize::MAX`.
     #[must_use]
     pub fn from_slice(data: &[u8]) -> Self {
         let size = data.len();

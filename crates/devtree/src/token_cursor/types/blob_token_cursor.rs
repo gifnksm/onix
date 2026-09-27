@@ -69,6 +69,12 @@ pub struct BlobTokenCursor<'blob> {
 }
 
 impl<'blob> BlobTokenCursor<'blob> {
+    /// Creates a new `BlobTokenCursor` over the given structure and strings
+    /// blocks.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `struct_block` is not properly aligned for `TokenType`.
     #[must_use]
     pub fn new(struct_block: &'blob [u8], strings_block: &'blob [u8]) -> Self {
         assert!(
